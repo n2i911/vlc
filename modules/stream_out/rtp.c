@@ -322,6 +322,8 @@ static int HttpSetup( sout_stream_t *p_stream, const vlc_url_t * );
 static int64_t rtp_init_ts( const vod_media_t *p_media,
                             const char *psz_vod_session );
 
+int intfec_encode( sout_stream_id_t *id, block_t *out );
+
 struct sout_stream_sys_t
 {
     /* SDP */
@@ -391,6 +393,9 @@ struct sout_stream_id_t
     bool        b_ts_init;
     uint32_t    i_ts_offset;
     uint8_t     ssrc[4];
+
+    /* Interleaved FEC */
+    bool      b_intfec;
 
     /* for rtsp */
     uint16_t    i_seq_sent_next;
@@ -1019,6 +1024,8 @@ static sout_stream_id_t *Add( sout_stream_t *p_stream, es_format_t *p_fmt )
 
     if( p_sys->b_intfec )
     {
+        id->b_intfec = true;
+
         id->i_fec_mtu = id->i_mtu;
         id->i_mtu -= 16;
 
@@ -1724,8 +1731,101 @@ void rtp_packetize_common( sout_stream_id_t *id, block_t *out,
     id->i_sequence++;
 }
 
+int intfec_encode( sout_stream_id_t *id, block_t *out )
+{
+    uint8_t i = 0;
+    uint8_t col = 0;
+    uint8_t row = 0;
+
+    intfec_packet_t *intfec_packet;
+
+    uint16_t matrix_seq = 0;
+
+    uint16_t sn = GetWBE( out->p_buffer + 2 );
+
+    /* The first time for encoding block */
+    if( !id->encoder->start_encoding )
+    {
+        id->encoder->start_encoding = true;
+        id->encoder->matrix_seq = sn;
+    }
+
+    col = id->encoder->col;
+    row = id->encoder->row;
+
+    matrix_seq = id->encoder->matrix_seq;
+
+    /* Start an new encoding block */
+    if( sn >= (matrix_seq + (col * row)) )
+    {
+        matrix_seq = sn;
+        id->encoder->matrix_seq = sn;
+
+        if( DEBUG ) printf( "%s, ====================================== \n", __func__ );
+
+        /* Free unreleased memory */
+        for( i = 0; i < col; i++ )
+        {
+            if( id->encoder->intfec_packets[i] != NULL )
+            {
+                /* Free pl_recovery */
+                if( id->encoder->intfec_packets[i]->pl_recovery != NULL )
+                    free( id->encoder->intfec_packets[i]->pl_recovery );
+
+                free( id->encoder->intfec_packets[i] );
+            }
+        }
+    }
+
+    if( id->encoder->start_encoding )
+    {
+        i = (sn - matrix_seq) % col;
+
+        if( DEBUG ) printf( "%s, matrix_seq: %u, sn: %u, index: %u\n", __func__, matrix_seq, sn, i );
+
+        intfec_packet = id->encoder->intfec_packets[i];
+
+        if( intfec_packet == NULL )
+        {
+            /* The first RTP packet of the FEC packet */
+            id->encoder->intfec_packets[i] = intfec_new( sn, col, row, out );
+            intfec_packet = id->encoder->intfec_packets[i];
+        }
+        else
+        {
+            intfec_add( intfec_packet, sn, out );
+        }
+
+        /* When one FEC packet has finished the encoding */
+        if( sn == (intfec_packet->base_seq + (col * (row - 1))) )
+        {
+            /* TODO: Send FEC packet */
+
+            if( DEBUG ) intfec_dump( id->encoder->intfec_packets[i] );
+
+            /* Free pl_recovery */
+            if( id->encoder->intfec_packets[i]->pl_recovery != NULL )
+                free( id->encoder->intfec_packets[i]->pl_recovery );
+
+            free( id->encoder->intfec_packets[i] );
+            intfec_packet = NULL;
+            id->encoder->intfec_packets[i] = NULL;
+
+            assert( id->encoder->intfec_packets[i] == NULL );
+        }
+    }
+
+    return 0;
+}
+
 void rtp_packetize_send( sout_stream_id_t *id, block_t *out )
 {
+    if( id->b_intfec )
+    {
+        /* Start FEC encoding */
+        intfec_encode( id, out );
+    }
+
     block_FifoPut( id->p_fifo, out );
 }
 

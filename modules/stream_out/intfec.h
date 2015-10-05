@@ -1,3 +1,4 @@
+#define DEBUG 1
 
 /*
  *  0                   1                   2                   3
@@ -49,6 +50,9 @@
 
 typedef struct intfec_packet_t
 {
+    uint8_t col;
+    uint8_t row;
+
     /* The FEC padding recovery, 1 bit */
     uint8_t padding_recovery;
 
@@ -76,6 +80,13 @@ typedef struct intfec_packet_t
     /* The FEC sn recovery, 16bits */
     uint16_t sn_recovery;
 
+    /* The FEC payload recovery */
+    uint8_t *pl_recovery;
+    uint16_t pl_len;
+
+    /* The FEC packet */
+    block_t *packet;
+
 } intfec_packet_t;
 
 typedef struct intfec_encoder_t
@@ -91,3 +102,7 @@ typedef struct intfec_encoder_t
 } intfec_encoder_t;
 
 intfec_encoder_t* intfec_create( uint8_t, uint8_t );
+
+intfec_packet_t* intfec_new( uint16_t, uint8_t, uint8_t, block_t* );
+int intfec_add( intfec_packet_t*, uint16_t, block_t* );
+void intfec_dump( intfec_packet_t* );
