@@ -270,12 +270,14 @@ void intfec_dump( intfec_packet_t *intfec_packet )
 {
     uint16_t i = 0;
 
-    printf( "%s, base_seq: %u, pl_len: %u\n", __func__, intfec_packet->base_seq, intfec_packet->pl_len );
+    printf( "%s, %u\n", intfec_packet->base_seq );
+    printf( "%s, base_seq: 0x%x, pl_len: %u\n", __func__, intfec_packet->base_seq, intfec_packet->pl_len );
     printf( "%s, padding_recovery: %u, ext_recovery: %u, cc_recovery: %u\n", __func__, intfec_packet->padding_recovery, intfec_packet->ext_recovery, intfec_packet->cc_recovery );
-    printf( "%s, mk_recovery: %u, pt_recovery: %u, sn_recovery: %u\n", __func__, intfec_packet->mk_recovery, intfec_packet->pt_recovery, intfec_packet->sn_recovery );
-    printf( "%s, ts_recovery: %u, len_recovery: %u\n", __func__, intfec_packet->ts_recovery, intfec_packet->len_recovery );
+    printf( "%s, mk_recovery: %u, pt_recovery: 0x%x, sn_recovery: 0x%x\n", __func__, intfec_packet->mk_recovery, intfec_packet->pt_recovery, intfec_packet->sn_recovery );
+    printf( "%s, col: 0x%x, row: 0x%x\n", __func__, intfec_packet->col, intfec_packet->row );
+    printf( "%s, ts_recovery: 0x%x, len_recovery: %u\n", __func__, intfec_packet->ts_recovery, intfec_packet->len_recovery );
 
-    for( i = 0; i < 8; i++ )
+    for( i = 0; i < 16; i++ )
     {
         printf( "%x, ", intfec_packet->pl_recovery[i]);
     }
