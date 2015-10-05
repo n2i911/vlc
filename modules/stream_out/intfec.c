@@ -272,7 +272,7 @@ void intfec_dump( intfec_packet_t *intfec_packet )
 {
     uint16_t i = 0;
 
-    printf( "%s, %u\n", intfec_packet->base_seq );
+    printf( "%s, %u\n", __func__, intfec_packet->base_seq );
     printf( "%s, base_seq: 0x%x, pl_len: %u\n", __func__, intfec_packet->base_seq, intfec_packet->pl_len );
     printf( "%s, padding_recovery: %u, ext_recovery: %u, cc_recovery: %u\n", __func__, intfec_packet->padding_recovery, intfec_packet->ext_recovery, intfec_packet->cc_recovery );
     printf( "%s, mk_recovery: %u, pt_recovery: 0x%x, sn_recovery: 0x%x\n", __func__, intfec_packet->mk_recovery, intfec_packet->pt_recovery, intfec_packet->sn_recovery );
