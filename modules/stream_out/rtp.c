@@ -47,6 +47,7 @@
 #endif
 
 #include "rtp.h"
+#include "intfec.h"
 
 #ifdef HAVE_UNISTD_H
 #   include <sys/types.h>
@@ -404,6 +405,9 @@ struct sout_stream_id_t
 #ifdef HAVE_SRTP
     srtp_session_t     *srtp;
 #endif
+
+    /* Interleaved FEC encoding block */
+    intfec_encoder_t *encoder;
 
     /* Packets sinks */
     vlc_thread_t      thread;
@@ -1017,6 +1021,14 @@ static sout_stream_id_t *Add( sout_stream_t *p_stream, es_format_t *p_fmt )
     {
         id->i_fec_mtu = id->i_mtu;
         id->i_mtu -= 16;
+
+        id->encoder = intfec_create( var_GetInteger( p_stream, SOUT_CFG_PREFIX "intfec-col" ),
+                                        var_GetInteger( p_stream, SOUT_CFG_PREFIX "intfec-row" ) );
+
+        if( id->encoder == NULL )
+        {
+            msg_Err( p_stream, "intfec_create() goes failure" );
+        }
     }
     msg_Dbg( p_stream, "maximum RTP packet size: %d bytes", id->i_mtu );
 
