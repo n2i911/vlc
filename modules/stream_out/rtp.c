@@ -356,6 +356,9 @@ struct sout_stream_sys_t
     bool      rtcp_mux;
     bool      b_latm;
 
+    /* Interleaved FEC */
+    bool      b_intfec;
+
     /* VoD */
     vod_media_t *p_vod_media;
     char     *psz_vod_session;
@@ -382,6 +385,7 @@ struct sout_stream_id_t
     sout_stream_t *p_stream;
     /* rtp field */
     uint16_t    i_sequence;
+    uint16_t    i_fec_sequence;
     bool        b_first_packet;
     bool        b_ts_init;
     uint32_t    i_ts_offset;
@@ -396,6 +400,7 @@ struct sout_stream_id_t
 
     /* Packetizer specific fields */
     int                 i_mtu;
+    int                 i_fec_mtu;
 #ifdef HAVE_SRTP
     srtp_session_t     *srtp;
 #endif
@@ -568,6 +573,8 @@ static int Open( vlc_object_t *p_this )
     p_sys->p_httpd_host = NULL;
     p_sys->p_httpd_file = NULL;
 
+    p_sys->b_intfec = var_GetBool( p_stream, SOUT_CFG_PREFIX "intfec" );
+
     p_stream->p_sys     = p_sys;
 
     vlc_mutex_init( &p_sys->lock_sdp );
@@ -664,7 +671,7 @@ static int Open( vlc_object_t *p_this )
         }
     }
 
-    if( var_GetBool( p_stream, SOUT_CFG_PREFIX "intfec" ) )
+    if( p_sys->b_intfec )
     {
         msg_Dbg( p_stream, "intfec: column - %ld, row - %ld", var_GetInteger( p_stream, SOUT_CFG_PREFIX "intfec-col" ),
                 var_GetInteger( p_stream, SOUT_CFG_PREFIX "intfec-row" ));
@@ -1005,7 +1012,18 @@ static sout_stream_id_t *Add( sout_stream_t *p_stream, es_format_t *p_fmt )
     id->i_mtu = var_InheritInteger( p_stream, "mtu" );
     if( id->i_mtu <= 12 + 16 )
         id->i_mtu = 576 - 20 - 8; /* pessimistic */
+
+    if( p_sys->b_intfec )
+    {
+        id->i_fec_mtu = id->i_mtu;
+        id->i_mtu -= 16;
+    }
     msg_Dbg( p_stream, "maximum RTP packet size: %d bytes", id->i_mtu );
+
+    if( p_sys->b_intfec )
+    {
+        msg_Dbg( p_stream, "maximum FEC packet size: %d bytes", id->i_fec_mtu );
+    }
 
 #ifdef HAVE_SRTP
     id->srtp = NULL;
@@ -1023,6 +1041,11 @@ static sout_stream_id_t *Add( sout_stream_t *p_stream, es_format_t *p_fmt )
 
     vlc_rand_bytes (&id->i_sequence, sizeof (id->i_sequence));
     vlc_rand_bytes (id->ssrc, sizeof (id->ssrc));
+
+    if( p_sys->b_intfec )
+    {
+        vlc_rand_bytes (&id->i_fec_sequence, sizeof (id->i_fec_sequence));
+    }
 
     bool format = false;
 
