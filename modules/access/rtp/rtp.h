@@ -39,6 +39,18 @@ static inline uint8_t rtp_ptype (const block_t *block)
     return block->p_buffer[1] & 0x7F;
 }
 
+static inline uint16_t rtp_seq (const block_t *block)
+{
+    assert (block->i_buffer >= 4);
+    return GetWBE (block->p_buffer + 2);
+}
+
+static inline uint32_t rtp_timestamp (const block_t *block)
+{
+    assert (block->i_buffer >= 12);
+    return GetDWBE (block->p_buffer + 4);
+}
+
 void *codec_init (demux_t *demux, es_format_t *fmt);
 void codec_destroy (demux_t *demux, void *data);
 void codec_decode (demux_t *demux, void *data, block_t *block);

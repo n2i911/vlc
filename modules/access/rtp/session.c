@@ -198,17 +198,6 @@ rtp_source_destroy (demux_t *demux, const rtp_session_t *session,
     free (source);
 }
 
-static inline uint16_t rtp_seq (const block_t *block)
-{
-    assert (block->i_buffer >= 4);
-    return GetWBE (block->p_buffer + 2);
-}
-
-static inline uint32_t rtp_timestamp (const block_t *block)
-{
-    assert (block->i_buffer >= 12);
-    return GetDWBE (block->p_buffer + 4);
-}
 
 static const struct rtp_pt_t *
 rtp_find_ptype (const rtp_session_t *session, rtp_source_t *source,

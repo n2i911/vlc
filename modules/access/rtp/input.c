@@ -35,6 +35,9 @@
 # include <poll.h>
 #endif
 
+#include <assert.h>
+#include <errno.h>
+
 #include "rtp.h"
 #ifdef HAVE_SRTP
 # include <srtp.h>
