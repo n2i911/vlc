@@ -324,6 +324,9 @@ static int64_t rtp_init_ts( const vod_media_t *p_media,
 
 int intfec_encode( sout_stream_id_t *id, block_t *out );
 
+void rtp_packetize_intfec( sout_stream_id_t *id, block_t *out,
+                            int b_marker, intfec_packet_t *intfec_packet );
+
 struct sout_stream_sys_t
 {
     /* SDP */
@@ -1731,6 +1734,75 @@ void rtp_packetize_common( sout_stream_id_t *id, block_t *out,
     id->i_sequence++;
 }
 
+void rtp_packetize_intfec( sout_stream_id_t *id, block_t *out,
+                            int b_marker, intfec_packet_t *intfec_packet )
+{
+    assert( intfec_packet != NULL );
+    assert( out != NULL );
+
+    int64_t i_pts = intfec_packet->i_dts;
+
+    uint32_t i_timestamp = rtp_compute_ts( id->rtp_fmt.clock_rate, i_pts )
+                           + id->i_ts_offset;
+
+    /* RTP header, 12 bytes */
+    out->p_buffer[0] = 0x80;
+
+    /* Payload type for intfec is 100 */
+    out->p_buffer[1] = ( b_marker ? 0x80 : 0x00 ) | 100;
+
+    out->p_buffer[2] = ( id->i_fec_sequence >> 8 ) & 0xff;
+    out->p_buffer[3] = ( id->i_fec_sequence      ) & 0xff;
+    out->p_buffer[4] = ( i_timestamp >> 24 ) & 0xff;
+    out->p_buffer[5] = ( i_timestamp >> 16 ) & 0xff;
+    out->p_buffer[6] = ( i_timestamp >>  8 ) & 0xff;
+    out->p_buffer[7] = ( i_timestamp       ) & 0xff;
+
+    memcpy( out->p_buffer + 8, id->ssrc, 4 );
+
+    /* FEC header, 16 bytes */
+
+    out->p_buffer[12] = 0;
+    out->p_buffer[12] |= ( intfec_packet->padding_recovery << 5 );
+    out->p_buffer[12] |= ( intfec_packet->ext_recovery << 4 );
+    out->p_buffer[12] |= ( intfec_packet->cc_recovery & 0x0f );
+
+    out->p_buffer[13] = 0;
+    out->p_buffer[13] |= ( intfec_packet->mk_recovery << 7 );
+    out->p_buffer[13] |= ( intfec_packet->pt_recovery & 0x7f );
+
+    /* SN Base */
+    out->p_buffer[14] = ( intfec_packet->base_seq >> 8 ) & 0xff;
+    out->p_buffer[15] = ( intfec_packet->base_seq      ) & 0xff;
+
+    /* TS Recovery */
+    out->p_buffer[16] = ( intfec_packet->ts_recovery >> 24 ) & 0xff;
+    out->p_buffer[17] = ( intfec_packet->ts_recovery >> 16 ) & 0xff;
+    out->p_buffer[18] = ( intfec_packet->ts_recovery >> 8  ) & 0xff;
+    out->p_buffer[19] = ( intfec_packet->ts_recovery       ) & 0xff;
+
+    /* Length Recovery */
+    out->p_buffer[20] = ( intfec_packet->len_recovery >> 8 ) & 0xff;
+    out->p_buffer[21] = ( intfec_packet->len_recovery      ) & 0xff;
+
+    /* col, row */
+    out->p_buffer[22] = intfec_packet->col;
+    out->p_buffer[23] = intfec_packet->row;
+
+    /* SN Recovery */
+    out->p_buffer[24] = ( intfec_packet->sn_recovery >> 8 ) & 0xff;
+    out->p_buffer[25] = ( intfec_packet->sn_recovery      ) & 0xff;
+
+    out->p_buffer[26] = 0x0;
+    out->p_buffer[27] = 0x0;
+
+    out->i_buffer = (12 + 16 + intfec_packet->pl_len);
+
+    memcpy( &out->p_buffer[28], intfec_packet->pl_recovery, intfec_packet->pl_len );
+
+    id->i_fec_sequence++;
+}
+
 int intfec_encode( sout_stream_id_t *id, block_t *out )
 {
     uint8_t i = 0;
@@ -1823,6 +1895,14 @@ int intfec_encode( sout_stream_id_t *id, block_t *out )
 
             if( DEBUG ) intfec_dump( id->encoder->intfec_packets[i] );
 
+            assert( id->encoder->packet == NULL );
+
+            id->encoder->intfec_packets[i]->i_dts = out->i_dts;
+
+            /* Packetize */
+            id->encoder->packet = block_Alloc( (12 + 16 + id->encoder->intfec_packets[i]->pl_len) );
+            rtp_packetize_intfec( id, id->encoder->packet, 0, id->encoder->intfec_packets[i] );
+
             /* Free pl_recovery */
             if( id->encoder->intfec_packets[i]->pl_recovery != NULL )
                 free( id->encoder->intfec_packets[i]->pl_recovery );
@@ -1847,6 +1927,16 @@ void rtp_packetize_send( sout_stream_id_t *id, block_t *out )
     }
 
     block_FifoPut( id->p_fifo, out );
+
+    if( id->b_intfec )
+    {
+        if( (id->encoder != NULL) && (id->encoder->packet != NULL) )
+        {
+            /* Put into packet buffer and waiting to send */
+            block_FifoPut( id->p_fifo, id->encoder->packet );
+            id->encoder->packet = NULL;
+        }
+    }
 }
 
 /**

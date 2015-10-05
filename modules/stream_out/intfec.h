@@ -84,8 +84,7 @@ typedef struct intfec_packet_t
     uint8_t *pl_recovery;
     uint16_t pl_len;
 
-    /* The FEC packet */
-    block_t *packet;
+    int64_t i_dts;
 
 } intfec_packet_t;
 
@@ -99,6 +98,9 @@ typedef struct intfec_encoder_t
     uint16_t matrix_seq;
 
     intfec_packet_t **intfec_packets;
+
+    /* The FEC packet */
+    block_t *packet;
 } intfec_encoder_t;
 
 intfec_encoder_t* intfec_create( uint8_t, uint8_t );

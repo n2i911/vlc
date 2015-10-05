@@ -196,6 +196,8 @@ intfec_encoder_t* intfec_create( uint8_t col, uint8_t row )
         intfec_encoder->intfec_packets[i] = NULL;
     }
 
+    intfec_encoder->packet = NULL;
+
     return intfec_encoder;
 }
 
