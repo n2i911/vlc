@@ -83,6 +83,11 @@
     "(between 96 and 127) if it can't be determined otherwise with " \
     "out-of-band mappings (SDP)" )
 
+#define RFC5109_TEXT N_("ULP FEC")
+#define RFC5109_LONGTEXT N_( \
+            "FEC is used to provide protect against packet loss over packet-switched " \
+            "networks. (see RFC5109)." )
+
 static const char *const dynamic_pt_list[] = { "theora" };
 static const char *const dynamic_pt_list_text[] = { "Theora Encoded Video" };
 
@@ -126,6 +131,9 @@ vlc_module_begin ()
     add_string ("rtp-dynamic-pt", NULL, RTP_DYNAMIC_PT_TEXT,
                 RTP_DYNAMIC_PT_LONGTEXT, true)
         change_string_list (dynamic_pt_list, dynamic_pt_list_text)
+
+    /* false as default */
+    add_bool ("rtp-intfec", false, RFC5109_TEXT, RFC5109_LONGTEXT, false)
 
     /*add_shortcut ("sctp")*/
     add_shortcut ("dccp", "rtptcp", /* "tcp" is already taken :( */
@@ -267,6 +275,8 @@ static int Open (vlc_object_t *obj)
     p_sys->max_misorder = var_CreateGetInteger (obj, "rtp-max-misorder");
     p_sys->thread_ready = false;
     p_sys->autodetect   = true;
+
+    p_sys->b_intfec     = var_CreateGetInteger (obj, "rtp-intfec");
 
     demux->pf_demux   = NULL;
     demux->pf_control = Control;

@@ -70,6 +70,8 @@ struct demux_sys_t
     int           rtcp_fd;
     vlc_thread_t  thread;
 
+    bool b_intfec;
+
     mtime_t       timeout;
     uint16_t      max_dropout; /**< Max packet forward misordering */
     uint16_t      max_misorder; /**< Max packet backward misordering */
