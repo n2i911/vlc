@@ -6,6 +6,7 @@ librtp_plugin_la_SOURCES = \
 	rtp.h \
 	input.c \
 	session.c \
+	intfec.c \
 	xiph.c
 librtp_plugin_la_CFLAGS = $(AM_CFLAGS)
 librtp_plugin_la_LIBADD = $(AM_LIBADD) $(SOCKET_LIBS)
