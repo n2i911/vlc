@@ -168,6 +168,17 @@ static const char *const ppsz_protocols[] = {
 #define RFC3016_LONGTEXT N_( \
     "This allows you to stream MPEG4 LATM audio streams (see RFC3016)." )
 
+#define RFC5109_TEXT N_("ULP FEC")
+#define RFC5109_LONGTEXT N_( \
+            "FEC is used to provide protect against packet loss over packet-switched " \
+            "networks. (see RFC5109)." )
+
+#define RFC6015_L_TEXT N_("Columns")
+#define RFC6015_D_TEXT N_("Rows")
+#define RFC6015_LONGTEXT N_( \
+            "1-D interleaved parity code provides protection against bursty losses. " \
+            "(see RFC6015)." )
+
 #define RTSP_TIMEOUT_TEXT N_( "RTSP session timeout (s)" )
 #define RTSP_TIMEOUT_LONGTEXT N_( "RTSP sessions will be closed after " \
     "not receiving any RTSP request for this long. Setting it to a " \
@@ -243,6 +254,18 @@ vlc_module_begin ()
     add_bool( SOUT_CFG_PREFIX "mp4a-latm", false, RFC3016_TEXT,
                  RFC3016_LONGTEXT, false )
 
+    /* false as default */
+    add_bool( SOUT_CFG_PREFIX "intfec", false, RFC5109_TEXT,
+            RFC5109_LONGTEXT, false )
+
+    /* 5 as default column */
+    add_integer_with_range( SOUT_CFG_PREFIX "intfec-col", 5, 1, 256, RFC6015_L_TEXT,
+            RFC6015_LONGTEXT, false )
+
+    /* 4 as default row */
+    add_integer_with_range( SOUT_CFG_PREFIX "intfec-row", 4, 1, 256, RFC6015_D_TEXT,
+            RFC6015_LONGTEXT, false )
+
     set_callbacks( Open, Close )
 
     add_submodule ()
@@ -272,6 +295,7 @@ static const char *const ppsz_sout_options[] = {
 #ifdef HAVE_SRTP
     "key", "salt",
 #endif
+    "intfec", "intfec-col", "intfec-row",
     "mp4a-latm", NULL
 };
 
@@ -638,6 +662,16 @@ static int Open( vlc_object_t *p_this )
             Close( p_this );
             return VLC_EGENERIC;
         }
+    }
+
+    if( var_GetBool( p_stream, SOUT_CFG_PREFIX "intfec" ) )
+    {
+        msg_Dbg( p_stream, "intfec: column - %ld, row - %ld", var_GetInteger( p_stream, SOUT_CFG_PREFIX "intfec-col" ),
+                var_GetInteger( p_stream, SOUT_CFG_PREFIX "intfec-row" ));
+    }
+    else
+    {
+        msg_Dbg( p_stream, "intfec: disable" );
     }
 
     return VLC_SUCCESS;
