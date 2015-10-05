@@ -1740,6 +1740,8 @@ int intfec_encode( sout_stream_id_t *id, block_t *out )
     intfec_packet_t *intfec_packet;
 
     uint16_t matrix_seq = 0;
+    uint32_t n_matrix_seq = 0;
+    uint32_t last_seq = 0;
 
     uint16_t sn = GetWBE( out->p_buffer + 2 );
 
@@ -1755,8 +1757,16 @@ int intfec_encode( sout_stream_id_t *id, block_t *out )
 
     matrix_seq = id->encoder->matrix_seq;
 
+    /* check if buffer overflow happens */
+    n_matrix_seq = (matrix_seq + (col * row));
+    if( n_matrix_seq > 65535 )
+    {
+        n_matrix_seq = n_matrix_seq - 65535 - 1;
+        if( DEBUG ) printf( "%s, overflow n_matrix_seq: %u\n", __func__, n_matrix_seq );
+    }
+
     /* Start an new encoding block */
-    if( sn >= (matrix_seq + (col * row)) )
+    if( sn == n_matrix_seq )
     {
         matrix_seq = sn;
         id->encoder->matrix_seq = sn;
@@ -1779,7 +1789,10 @@ int intfec_encode( sout_stream_id_t *id, block_t *out )
 
     if( id->encoder->start_encoding )
     {
-        i = (sn - matrix_seq) % col;
+        if( sn < matrix_seq )
+            i = ((65535 - matrix_seq) + 1 + sn) % col;
+        else
+            i = (sn - matrix_seq) % col;
 
         if( DEBUG ) printf( "%s, matrix_seq: %u, sn: %u, index: %u\n", __func__, matrix_seq, sn, i );
 
@@ -1796,8 +1809,15 @@ int intfec_encode( sout_stream_id_t *id, block_t *out )
             intfec_add( intfec_packet, sn, out );
         }
 
+        last_seq = (intfec_packet->base_seq + (col * (row - 1)));
+        if( last_seq > 65535 )
+        {
+            last_seq = last_seq - 65535 - 1;
+            if ( DEBUG ) printf( "%s, overflow last_seq: %u\n", __func__, last_seq );
+        }
+
         /* When one FEC packet has finished the encoding */
-        if( sn == (intfec_packet->base_seq + (col * (row - 1))) )
+        if( sn == last_seq )
         {
             /* TODO: Send FEC packet */
 
