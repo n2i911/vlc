@@ -50,6 +50,13 @@
 #define DEBUG 1
 #define DEBUG_DECODE 0
 
+typedef struct intfec_decoder_t
+{
+    block_t *intfec_blocks; /* re-ordered intfec blocks queue */
+    block_t *rtp_blocks;    /* re-ordered rtp blocks queue */
+
+} intfec_decoder_t;
+
 uint8_t intfec_cc (const block_t *block);
 uint8_t intfec_mk (const block_t *block);
 uint8_t intfec_pt (const block_t *block);

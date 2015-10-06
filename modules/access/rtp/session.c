@@ -32,6 +32,7 @@
 #include <vlc_demux.h>
 
 #include "rtp.h"
+#include "intfec.h"
 
 typedef struct rtp_source_t rtp_source_t;
 
@@ -149,6 +150,7 @@ struct rtp_source_t
 
     uint16_t last_seq; /* sequence of the next dequeued packet */
     block_t *blocks; /* re-ordered blocks queue */
+    intfec_decoder_t intfec_decoder;
     void    *opaque[]; /* Per-source private payload data */
 };
 
@@ -173,6 +175,9 @@ rtp_source_create (demux_t *demux, const rtp_session_t *session,
     source->max_seq = source->bad_seq = init_seq;
     source->last_seq = init_seq - 1;
     source->blocks = NULL;
+
+    source->intfec_decoder.intfec_blocks = NULL;
+    source->intfec_decoder.rtp_blocks = NULL;
 
     /* Initializes all payload */
     for (unsigned i = 0; i < session->ptc; i++)
