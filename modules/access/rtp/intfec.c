@@ -80,3 +80,29 @@ int intfec_dump (block_t *intfec)
 
     return 0;
 }
+
+int intfec_sameGroup (block_t *intfec, block_t *rtp)
+{
+    uint32_t sn;
+    uint16_t base;
+    uint8_t i;
+    uint8_t col;
+    uint8_t row;
+
+    base = intfec_baseseq (intfec);
+
+    col = intfec_col (intfec);
+    row = intfec_row (intfec);
+
+    for (i = 0; i < row; i++)
+    {
+        sn = base + (col * i);
+
+        if (sn > 65535)
+            sn = sn - 65535 - 1;
+
+        if (sn == rtp_seq (rtp))
+            return 1;
+    }
+    return 0;
+}
