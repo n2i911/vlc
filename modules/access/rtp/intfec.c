@@ -81,6 +81,27 @@ int intfec_dump (block_t *intfec)
     return 0;
 }
 
+int rtp_dump (block_t *rtp)
+{
+    uint8_t i = 0;
+
+    printf ("%s, byte 0: 0x%x\n", __func__, rtp->p_buffer[0]);
+    printf ("%s, byte 1: 0x%x\n", __func__, rtp->p_buffer[1]);
+
+    printf ("%s, type: %u\n", __func__, rtp_ptype (rtp));
+    printf ("%s, sn: %u\n", __func__, rtp_seq (rtp));
+    printf ("%s, ts: %u\n", __func__, rtp_timestamp (rtp));
+    printf ("%s, ssrc: %u\n", __func__, rtp_ssrc (rtp));
+
+    printf ("%s, Payload:\n", __func__);
+    for (i = 0; i < 16; i++)
+        printf ("0x%x ", rtp->p_buffer[i+12]);
+
+    printf ("\n--------------------------------------\n");
+
+    return 0;
+}
+
 int intfec_sameGroup (block_t *intfec, block_t *rtp)
 {
     uint32_t sn;
@@ -220,8 +241,6 @@ int intfec_set_pl (block_t *intfec, block_t *rtp)
 {
     assert (rtp != NULL);
     assert (intfec != NULL);
-
-    uint8_t *tmp = NULL;
 
     uint16_t i = 0;
     uint16_t len = (rtp->i_buffer - 12);
