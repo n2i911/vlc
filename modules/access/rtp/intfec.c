@@ -115,3 +115,121 @@ int intfec_inc_count (block_t *intfec)
 
     return 0;
 }
+
+int intfec_set_p_x_cc (block_t *intfec, block_t *rtp)
+{
+    assert (rtp != NULL);
+    assert (intfec != NULL);
+
+    uint8_t padding_ext_cc_recovery = (intfec->p_buffer[12] & 0x3f);
+    uint8_t padding_ext_cc = (rtp->p_buffer[0] & 0x3f);
+
+    if (DEBUG_DECODE) printf( "%s - padding_ext_cc_recovery: %u, padding_ext_cc: %u\n", __func__, padding_ext_cc_recovery, padding_ext_cc);
+
+    padding_ext_cc_recovery ^= padding_ext_cc;
+
+    intfec->p_buffer[12] = (intfec->p_buffer[12] & 0xc0) | padding_ext_cc_recovery;
+
+    if (DEBUG_DECODE) printf( "%s - padding_ext_cc_recovery: %u, 0x%x\n", __func__, padding_ext_cc_recovery, intfec->p_buffer[12]);
+
+    return 0;
+}
+
+int intfec_set_mk_pt (block_t *intfec, block_t *rtp)
+{
+    assert (rtp != NULL);
+    assert (intfec != NULL);
+
+    uint8_t mk_pt_recovery = intfec->p_buffer[13];
+    uint8_t mk_pt = rtp->p_buffer[1];
+
+    if (DEBUG_DECODE) printf ("%s - mk_pt_recovery: %u, mk_pt: %u\n", __func__, mk_pt_recovery, mk_pt);
+
+    intfec->p_buffer[13] ^= rtp->p_buffer[1];
+
+    if (DEBUG_DECODE) printf ("%s - mk_pt_recovery: %u\n", __func__, intfec->p_buffer[13]);
+
+    return 0;
+}
+
+int intfec_set_ts (block_t *intfec, block_t *rtp)
+{
+    assert (rtp != NULL);
+    assert (intfec != NULL);
+
+    uint32_t ts_recovery = intfec_timestamp (intfec);
+    uint32_t ts = rtp_timestamp (rtp);
+
+    if (DEBUG_DECODE) printf ("%s - ts_recovery: %u, ts: %u\n", __func__, ts_recovery, ts);
+
+    ts_recovery ^= ts;
+
+    intfec->p_buffer[16] = (ts_recovery >> 24) & 0xff;
+    intfec->p_buffer[17] = (ts_recovery >> 16) & 0xff;
+    intfec->p_buffer[18] = (ts_recovery >> 8 ) & 0xff;
+    intfec->p_buffer[19] = (ts_recovery      ) & 0xff;
+
+    if (DEBUG_DECODE) printf ("%s - ts_recovery: %u\n", __func__, ts_recovery);
+
+    return 0;
+}
+
+int intfec_set_len (block_t *intfec, block_t *rtp)
+{
+    assert (rtp != NULL);
+    assert (intfec != NULL);
+
+    /* Size of RTP header is 12 bytes
+     * Len would be only for the payload */
+    uint16_t len_recovery = intfec_len (intfec);
+    uint16_t len = (rtp->i_buffer - 12);
+
+    if (DEBUG_DECODE) printf ("%s - len_recovery: %u, len: %u\n", __func__, len_recovery, len);
+
+    len_recovery ^= len;
+
+    intfec->p_buffer[20] = (len_recovery >> 8) & 0xff;
+    intfec->p_buffer[21] = (len_recovery     ) & 0xff;
+
+    if (DEBUG_DECODE) printf ("%s - len_recovery: %u\n", __func__, len_recovery);
+
+    return 0;
+}
+
+int intfec_set_sn (block_t *intfec, block_t *rtp)
+{
+    assert (rtp != NULL);
+    assert (intfec != NULL);
+
+    uint16_t sn_recovery = intfec_sn (intfec);
+    uint16_t sn = rtp_seq (rtp);
+
+    if (DEBUG_DECODE) printf ("%s - sn_recovery: %u, sn: %u\n", __func__, sn_recovery, sn);
+
+    sn_recovery ^= sn;
+
+    intfec->p_buffer[24] = (sn_recovery >> 8) & 0xff;
+    intfec->p_buffer[25] = (sn_recovery     ) & 0xff;
+
+    if (DEBUG_DECODE) printf ("%s - sn_recovery: %u\n", __func__, sn_recovery);
+
+    return 0;
+}
+
+int intfec_set_pl (block_t *intfec, block_t *rtp)
+{
+    assert (rtp != NULL);
+    assert (intfec != NULL);
+
+    uint8_t *tmp = NULL;
+
+    uint16_t i = 0;
+    uint16_t len = (rtp->i_buffer - 12);
+
+    for (i = 0; i < len; i++)
+    {
+        intfec->p_buffer[i+28] ^= rtp->p_buffer[i+12];
+    }
+
+    return 0;
+}

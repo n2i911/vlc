@@ -48,6 +48,7 @@
  */
 
 #define DEBUG 1
+#define DEBUG_DECODE 0
 
 uint8_t intfec_cc (const block_t *block);
 uint8_t intfec_mk (const block_t *block);
