@@ -47,4 +47,16 @@
  * +=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+
  */
 
+#define DEBUG 1
 
+uint8_t intfec_cc (const block_t *block);
+uint8_t intfec_mk (const block_t *block);
+uint8_t intfec_pt (const block_t *block);
+uint16_t intfec_baseseq (const block_t *block);
+uint32_t intfec_timestamp (const block_t *block);
+uint16_t intfec_len (const block_t *block);
+uint8_t intfec_col (const block_t *block);
+uint8_t intfec_row (const block_t *block);
+uint16_t intfec_sn (const block_t *block);
+uint8_t intfec_count (const block_t *block);
+int intfec_dump (block_t *intfec);
