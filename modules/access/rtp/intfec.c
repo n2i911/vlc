@@ -233,3 +233,18 @@ int intfec_set_pl (block_t *intfec, block_t *rtp)
 
     return 0;
 }
+
+int intfec_decode (block_t *intfec, block_t *rtp)
+{
+    intfec_set_p_x_cc (intfec, rtp);
+    intfec_set_mk_pt (intfec, rtp);
+
+    intfec_set_ts (intfec, rtp);
+    intfec_set_len (intfec, rtp);
+    intfec_set_sn (intfec, rtp);
+    intfec_set_pl (intfec, rtp);
+
+    intfec_inc_count (intfec);
+
+    return 0;
+}

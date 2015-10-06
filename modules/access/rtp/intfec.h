@@ -63,3 +63,4 @@ uint8_t intfec_count (const block_t *block);
 int intfec_dump (block_t *intfec);
 
 int intfec_sameGroup (block_t *intfec, block_t *rtp);
+int intfec_decode (block_t *intfec, block_t *rtp);
