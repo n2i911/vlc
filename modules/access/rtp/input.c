@@ -56,6 +56,13 @@ static void rtp_process (demux_t *demux, block_t *block)
     if (ptype >= 72 && ptype <= 76)
         goto drop; /* Muxed RTCP, ignore for now FIXME */
 
+    /* If didn't enable intfec, ignore FEC packet directly */
+    if (!sys->b_intfec)
+    {
+        if (ptype == 100)
+            goto drop;
+    }
+
 #ifdef HAVE_SRTP
     if (sys->srtp != NULL)
     {
@@ -72,11 +79,17 @@ static void rtp_process (demux_t *demux, block_t *block)
     /* TODO: use SDP and get rid of this hack */
     if (unlikely(sys->autodetect))
     {   /* Autodetect payload type, _before_ rtp_queue() */
-        rtp_autodetect (demux, sys->session, block);
-        sys->autodetect = false;
+        if (!(sys->b_intfec && rtp_ptype (block) == 100))
+        {
+            rtp_autodetect (demux, sys->session, block);
+            sys->autodetect = false;
+        }
     }
 
-    rtp_queue (demux, sys->session, block);
+    if (ptype == 100)
+        intfec_queue (demux, sys->session, block);
+    else
+        rtp_enqueue (demux, sys->session, block);
     return;
 drop:
     block_Release (block);
