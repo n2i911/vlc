@@ -106,3 +106,12 @@ int intfec_sameGroup (block_t *intfec, block_t *rtp)
     }
     return 0;
 }
+
+int intfec_inc_count (block_t *intfec)
+{
+    assert (intfec != NULL);
+
+    intfec->p_buffer[27]++;
+
+    return 0;
+}
