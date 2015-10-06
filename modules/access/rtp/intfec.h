@@ -53,7 +53,9 @@
 typedef struct intfec_decoder_t
 {
     block_t *intfec_blocks; /* re-ordered intfec blocks queue */
+    uint16_t intfec_depth;
     block_t *rtp_blocks;    /* re-ordered rtp blocks queue */
+    uint16_t rtp_depth;
 
 } intfec_decoder_t;
 

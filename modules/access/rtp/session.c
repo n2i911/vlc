@@ -177,7 +177,9 @@ rtp_source_create (demux_t *demux, const rtp_session_t *session,
     source->blocks = NULL;
 
     source->intfec_decoder.intfec_blocks = NULL;
+    source->intfec_decoder.intfec_depth = 0;
     source->intfec_decoder.rtp_blocks = NULL;
+    source->intfec_decoder.rtp_depth = 0;
 
     /* Initializes all payload */
     for (unsigned i = 0; i < session->ptc; i++)
@@ -254,6 +256,8 @@ rtp_queue (demux_t *demux, rtp_session_t *session, block_t *block)
     rtp_source_t  *src  = NULL;
     const uint16_t seq  = rtp_seq (block);
     const uint32_t ssrc = GetDWBE (block->p_buffer + 8);
+
+    if (DEBUG) printf ("%s, seq: %u\n", __func__, seq);
 
     /* In most case, we know this source already */
     for (unsigned i = 0, max = session->srcc; i < max; i++)
