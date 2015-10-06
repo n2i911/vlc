@@ -307,7 +307,7 @@ block_t* intfec_new_RTP (block_t *intfec)
     return block;
 }
 
-void intfec_blocklist_insert (block_t **head, block_t *block)
+void intfec_blocklist_insert (block_t **head, block_t *block, uint16_t *depth)
 {
     assert (head != NULL);
     assert (block != NULL);
@@ -331,6 +331,10 @@ void intfec_blocklist_insert (block_t **head, block_t *block)
     }
     block->p_next = *head;
     *head = block;
+
+    (*depth)++;
+
+    if (DEBUG) printf ("%s, seq: %u\n", __func__, rtp_seq (block));
 
     return;
 
