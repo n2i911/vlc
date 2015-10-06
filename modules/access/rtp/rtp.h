@@ -34,6 +34,16 @@ struct rtp_pt_t
 };
 void rtp_autodetect (demux_t *, rtp_session_t *, const block_t *);
 
+static inline uint8_t rtp_cc (const block_t *block)
+{
+    return block->p_buffer[0] & 0x0f;
+}
+
+static inline uint8_t rtp_mk (const block_t *block)
+{
+    return (block->p_buffer[1] >> 7);
+}
+
 static inline uint8_t rtp_ptype (const block_t *block)
 {
     return block->p_buffer[1] & 0x7F;
@@ -49,6 +59,12 @@ static inline uint32_t rtp_timestamp (const block_t *block)
 {
     assert (block->i_buffer >= 12);
     return GetDWBE (block->p_buffer + 4);
+}
+
+static inline uint32_t rtp_ssrc (const block_t *block)
+{
+    assert (block->i_buffer >= 12);
+    return GetDWBE (block->p_buffer + 8);
 }
 
 void *codec_init (demux_t *demux, es_format_t *fmt);
