@@ -341,3 +341,47 @@ void intfec_blocklist_insert (block_t **head, block_t *block, uint16_t *depth)
 drop:
     block_Release (block);
 }
+
+block_t* intfec_blocklist_pop (block_t **head, uint16_t *depth)
+{
+    assert (head != NULL);
+
+    block_t *prev = *head;
+
+    if (prev != NULL)
+    {
+        *head = prev->p_next;
+        (*depth)--;
+
+        if (DEBUG) printf ("%s, seq: %u\n", __func__, rtp_seq (prev));
+
+        return prev;
+    }
+
+    return NULL;
+}
+
+/**
+ * @return NULL if no such this node in the block list */
+block_t* intfec_blocklist_remove (block_t **head, block_t *block, uint16_t *depth)
+{
+    assert (head != NULL);
+    assert (block != NULL);
+
+    for (block_t *prev = *head; prev != NULL; prev = *head)
+    {
+        if (prev == block)
+        {
+            *head = prev->p_next;
+
+            (*depth)--;
+
+            if (DEBUG) printf ("%s, seq: %u\n", __func__, rtp_seq (block));
+
+            return block;
+        }
+        head = &prev->p_next;
+    }
+
+    return NULL;
+}
