@@ -69,6 +69,14 @@ uint16_t intfec_sn (const block_t *block);
 uint8_t intfec_count (const block_t *block);
 int intfec_dump (block_t *intfec);
 
+int intfec_inc_count (block_t *intfec);
+int intfec_set_p_x_cc (block_t *intfec, block_t *rtp);
+int intfec_set_mk_pt (block_t *intfec, block_t *rtp);
+int intfec_set_ts (block_t *intfec, block_t *rtp);
+int intfec_set_len (block_t *intfec, block_t *rtp);
+int intfec_set_sn (block_t *intfec, block_t *rtp);
+int intfec_set_pl (block_t *intfec, block_t *rtp);
+
 int intfec_sameGroup (block_t *intfec, block_t *rtp);
 int intfec_decode (block_t *intfec, block_t *rtp);
 int rtp_dump (block_t *rtp);
