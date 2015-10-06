@@ -306,3 +306,34 @@ block_t* intfec_new_RTP (block_t *intfec)
 
     return block;
 }
+
+void intfec_blocklist_insert (block_t **head, block_t *block)
+{
+    assert (head != NULL);
+    assert (block != NULL);
+
+    uint16_t seq  = rtp_seq (block);
+
+    /* insert new block by ascent order */
+    for (block_t *prev = *head; prev != NULL; prev = *head)
+    {
+        if (0) printf ("%s, %u\n", __func__, rtp_seq (prev));
+
+        int16_t delta_seq = seq - rtp_seq (prev);
+        if (delta_seq < 0)
+            break;
+        if (delta_seq == 0)
+        {
+            if (DEBUG) printf ("%s, duplicate packet (sequence: %u)\n", __func__, rtp_seq (prev));
+            goto drop; /* duplicate */
+        }
+        head = &prev->p_next;
+    }
+    block->p_next = *head;
+    *head = block;
+
+    return;
+
+drop:
+    block_Release (block);
+}
