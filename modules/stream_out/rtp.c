@@ -1025,6 +1025,9 @@ static sout_stream_id_t *Add( sout_stream_t *p_stream, es_format_t *p_fmt )
     if( id->i_mtu <= 12 + 16 )
         id->i_mtu = 576 - 20 - 8; /* pessimistic */
 
+    /* false as default */
+    id->b_intfec = false;
+
     if( p_sys->b_intfec )
     {
         id->b_intfec = true;
