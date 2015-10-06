@@ -225,6 +225,271 @@ rtp_find_ptype (const rtp_session_t *session, rtp_source_t *source,
 }
 
 /**
+ * Receives an FEC packet and queues it. Not a cancellation point.
+ *
+ * @param demux VLC demux object
+ * @param session RTP session receiving the packet
+ * @param block FEC packet including the RTP header and FEC header
+ */
+void
+intfec_queue (demux_t *demux, rtp_session_t *session, block_t *block)
+{
+    demux_sys_t *p_sys = demux->p_sys;
+
+    /* RTP header sanity checks (see RFC 3550) */
+    if (block->i_buffer < 12)
+        goto drop;
+    if ((block->p_buffer[0] >> 6 ) != 2) /* RTP version number */
+        goto drop;
+
+    /* Remove padding if present */
+    if (block->p_buffer[0] & 0x20)
+    {
+        uint8_t padding = block->p_buffer[block->i_buffer - 1];
+        if ((padding == 0) || (block->i_buffer < (12u + padding)))
+            goto drop; /* illegal value */
+
+        block->i_buffer -= padding;
+    }
+
+    rtp_source_t  *src  = NULL;
+    const uint8_t row   = intfec_row (block);
+    const uint16_t seq  = rtp_seq (block);
+    const uint32_t ssrc = GetDWBE (block->p_buffer + 8);
+
+    /* In most case, we know this source already */
+    for (unsigned i = 0, max = session->srcc; i < max; i++)
+    {
+        rtp_source_t *tmp = session->srcv[i];
+        if (tmp->ssrc == ssrc)
+        {
+            src = tmp;
+            break;
+        }
+    }
+
+    if (src == NULL)
+    {
+        /* New source */
+        if (session->srcc >= p_sys->max_src)
+        {
+            msg_Warn (demux, "too many RTP sessions");
+            goto drop;
+        }
+
+        rtp_source_t **tab;
+        tab = realloc (session->srcv, (session->srcc + 1) * sizeof (*tab));
+        if (tab == NULL)
+            goto drop;
+        session->srcv = tab;
+
+        src = rtp_source_create (demux, session, ssrc, seq);
+        if (src == NULL)
+            goto drop;
+
+        tab[session->srcc++] = src;
+    }
+
+    if (DEBUG) intfec_dump (block);
+
+    /*
+     * Check if the same group and decode
+     */
+    block_t *rtp = src->intfec_decoder.rtp_blocks;
+    for (block_t *prev = rtp; prev != NULL; prev = rtp)
+    {
+        if (DEBUG) printf ("%s, seq: %u\n", __func__, rtp_seq (prev));
+
+        /*
+         * If the same group
+         */
+        if (intfec_sameGroup(block, prev) == 1)
+        {
+            if (DEBUG) printf ("%s, same group\n", __func__);
+
+            /* intfec decode */
+            intfec_decode (block, prev);
+        }
+
+        if (intfec_count(block) == (row - 1))
+        {
+            if (DEBUG) printf ("%s, recovery finished\n", __func__);
+            if (DEBUG) intfec_dump (block);
+
+            block_t *n_rtp = intfec_new_RTP (block);
+
+            if (n_rtp != NULL)
+            {
+                if (DEBUG) rtp_dump (n_rtp);
+                intfec_blocklist_insert (&src->intfec_decoder.rtp_blocks, n_rtp, &src->intfec_decoder.rtp_depth);
+
+                /* The recovery for the FEC has finished so we don't
+                 * need to insert this FEC packet, just drop it */
+                goto drop;
+            }
+
+            break;
+        }
+
+        rtp = prev->p_next;
+    }
+
+    /* Queues the block in sequence order,
+     * hence there is a single queue for all payload types. */
+    intfec_blocklist_insert (&src->intfec_decoder.intfec_blocks, block, &src->intfec_decoder.intfec_depth);
+
+    if (DEBUG) printf ("%s, %u\n", __func__, seq);
+    if (DEBUG) printf ("%s, intfec_depth: %u\n", __func__, src->intfec_decoder.intfec_depth);
+    if (DEBUG) printf ("%s, rtp_depth: %u\n", __func__, src->intfec_decoder.rtp_depth);
+
+    return;
+
+drop:
+    block_Release (block);
+}
+
+/**
+ * Receives an RTP packet and queues it. Not a cancellation point.
+ *
+ * @param demux VLC demux object
+ * @param session RTP session receiving the packet
+ * @param block RTP packet including the RTP header
+ */
+void
+rtp_enqueue (demux_t *demux, rtp_session_t *session, block_t *block)
+{
+    demux_sys_t *p_sys = demux->p_sys;
+
+    /* RTP header sanity checks (see RFC 3550) */
+    if (block->i_buffer < 12)
+        goto drop;
+    if ((block->p_buffer[0] >> 6 ) != 2) /* RTP version number */
+        goto drop;
+
+    /* Remove padding if present */
+    if (block->p_buffer[0] & 0x20)
+    {
+        uint8_t padding = block->p_buffer[block->i_buffer - 1];
+        if ((padding == 0) || (block->i_buffer < (12u + padding)))
+            goto drop; /* illegal value */
+
+        block->i_buffer -= padding;
+    }
+
+    rtp_source_t  *src  = NULL;
+    const uint16_t seq  = rtp_seq (block);
+    const uint32_t ssrc = GetDWBE (block->p_buffer + 8);
+
+    /* In most case, we know this source already */
+    for (unsigned i = 0, max = session->srcc; i < max; i++)
+    {
+        rtp_source_t *tmp = session->srcv[i];
+        if (tmp->ssrc == ssrc)
+        {
+            src = tmp;
+            break;
+        }
+    }
+
+    if (src == NULL)
+    {
+        /* New source */
+        if (session->srcc >= p_sys->max_src)
+        {
+            msg_Warn (demux, "too many RTP sessions");
+            goto drop;
+        }
+
+        rtp_source_t **tab;
+        tab = realloc (session->srcv, (session->srcc + 1) * sizeof (*tab));
+        if (tab == NULL)
+            goto drop;
+        session->srcv = tab;
+
+        src = rtp_source_create (demux, session, ssrc, seq);
+        if (src == NULL)
+            goto drop;
+
+        tab[session->srcc++] = src;
+    }
+
+    /*
+     * Check if the same group and decode
+     */
+    block_t *intfec = src->intfec_decoder.intfec_blocks;
+    for (block_t *prev = intfec; prev != NULL; prev = intfec)
+    {
+        if (DEBUG) printf ("%s, seq: %u\n", __func__, rtp_seq (prev));
+
+        /*
+         * If the same group
+         */
+        if (intfec_sameGroup(prev, block) == 1)
+        {
+            if (DEBUG) printf ("%s, same group\n", __func__);
+
+            /* intfec decode */
+            intfec_decode (prev, block);
+
+            uint8_t row = intfec_row (prev);
+
+            if (intfec_count(prev) == (row - 1))
+            {
+                if (DEBUG) printf ("%s, recovery finished\n", __func__);
+                if (DEBUG) intfec_dump (prev);
+
+                /* Create a new RTP from the FEC and insert into the rtp queue */
+                block_t *n_rtp = intfec_new_RTP (prev);
+
+                if (n_rtp != NULL)
+                {
+                    if (DEBUG) rtp_dump (n_rtp);
+                    intfec_blocklist_insert (&src->intfec_decoder.rtp_blocks, n_rtp, &src->intfec_decoder.rtp_depth);
+                }
+
+                /* remove and release the FEC packet from fec queue */
+                block_t *n_intfec = intfec_blocklist_remove (&src->intfec_decoder.intfec_blocks, prev, &src->intfec_decoder.intfec_depth);
+
+                if (n_intfec)
+                {
+                    block_Release (n_intfec);
+                }
+            }
+
+            break;
+        }
+
+        intfec = prev->p_next;
+    }
+
+    /* Queues the block in sequence order,
+     * hence there is a single queue for all payload types. */
+    intfec_blocklist_insert (&src->intfec_decoder.rtp_blocks, block, &src->intfec_decoder.rtp_depth);
+
+    if (DEBUG) printf ("%s, %u\n", __func__, seq);
+    if (DEBUG) printf ("%s, intfec_depth: %u\n", __func__, src->intfec_decoder.intfec_depth);
+    if (DEBUG) printf ("%s, rtp_depth: %u\n", __func__, src->intfec_decoder.rtp_depth);
+
+    block_t *r_rtp;
+    while (src->intfec_decoder.rtp_depth > 25)
+    {
+        r_rtp = NULL;
+
+        r_rtp = intfec_blocklist_pop (&src->intfec_decoder.rtp_blocks, &src->intfec_decoder.rtp_depth);
+
+        if (r_rtp != NULL)
+        {
+            rtp_queue (demux, session, r_rtp);
+        }
+    }
+
+    return;
+
+drop:
+    block_Release (block);
+}
+
+/**
  * Receives an RTP packet and queues it. Not a cancellation point.
  *
  * @param demux VLC demux object
