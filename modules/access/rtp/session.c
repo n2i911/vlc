@@ -342,6 +342,19 @@ intfec_queue (demux_t *demux, rtp_session_t *session, block_t *block)
     if (DEBUG) printf ("%s, intfec_depth: %u\n", __func__, src->intfec_decoder.intfec_depth);
     if (DEBUG) printf ("%s, rtp_depth: %u\n", __func__, src->intfec_decoder.rtp_depth);
 
+    block_t *r_intfec;
+    while (src->intfec_decoder.intfec_depth > 10)
+    {
+        r_intfec = NULL;
+
+        r_intfec = intfec_blocklist_pop (&src->intfec_decoder.intfec_blocks, &src->intfec_decoder.intfec_depth);
+
+        if (r_intfec != NULL)
+        {
+            block_Release (r_intfec);
+        }
+    }
+
     return;
 
 drop:
