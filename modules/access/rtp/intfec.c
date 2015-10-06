@@ -267,3 +267,42 @@ int intfec_decode (block_t *intfec, block_t *rtp)
 
     return 0;
 }
+
+block_t* intfec_new_RTP (block_t *intfec)
+{
+    assert (intfec != NULL);
+
+    uint16_t len = intfec_len (intfec);
+
+    block_t *block = block_Alloc (len + 12);
+
+    if (unlikely (block == NULL))
+        return NULL;
+
+    /* P,X,CC */
+    block->p_buffer[0] = 0x80 | intfec->p_buffer[12];
+
+    /* Maker, Payload type */
+    block->p_buffer[1] = intfec->p_buffer[13];
+
+    /* SN */
+    block->p_buffer[2] = intfec->p_buffer[24];
+    block->p_buffer[3] = intfec->p_buffer[25];
+
+    /* Timestamp */
+    block->p_buffer[4] = intfec->p_buffer[16];
+    block->p_buffer[5] = intfec->p_buffer[17];
+    block->p_buffer[6] = intfec->p_buffer[18];
+    block->p_buffer[7] = intfec->p_buffer[19];
+
+    /* SSRC */
+    block->p_buffer[8]  = intfec->p_buffer[8];
+    block->p_buffer[9]  = intfec->p_buffer[9];
+    block->p_buffer[10] = intfec->p_buffer[10];
+    block->p_buffer[11] = intfec->p_buffer[11];
+
+    /* Payload */
+    memcpy (&block->p_buffer[12], &intfec->p_buffer[28], len);
+
+    return block;
+}
