@@ -117,6 +117,6 @@ int intfec_sameGroup (block_t *intfec, block_t *rtp);
 int intfec_decode (block_t *intfec, block_t *rtp);
 int rtp_dump (block_t *rtp);
 block_t* intfec_new_RTP (block_t *intfec);
-void intfec_blocklist_insert (block_t **head, block_t *block, uint16_t *depth);
+uint8_t intfec_blocklist_insert (block_t **head, block_t *block, uint16_t *depth);
 block_t* intfec_blocklist_pop (block_t **head, uint16_t *depth);
 block_t* intfec_blocklist_remove (block_t **head, block_t *block, uint16_t *depth);

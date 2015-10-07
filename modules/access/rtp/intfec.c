@@ -350,7 +350,7 @@ block_t* intfec_new_RTP (block_t *intfec)
     return block;
 }
 
-void intfec_blocklist_insert (block_t **head, block_t *block, uint16_t *depth)
+uint8_t intfec_blocklist_insert (block_t **head, block_t *block, uint16_t *depth)
 {
     assert (head != NULL);
     assert (block != NULL);
@@ -379,10 +379,11 @@ void intfec_blocklist_insert (block_t **head, block_t *block, uint16_t *depth)
 
     if (DEBUG_VV) printf ("%s, seq: %u, depth: %u\n", __func__, rtp_seq (block), *depth);
 
-    return;
+    return 0;
 
 drop:
     block_Release (block);
+    return 1;
 }
 
 block_t* intfec_blocklist_pop (block_t **head, uint16_t *depth)
