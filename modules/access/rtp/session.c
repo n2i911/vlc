@@ -374,6 +374,13 @@ rtp_enqueue (demux_t *demux, rtp_session_t *session, block_t *block)
 {
     demux_sys_t *p_sys = demux->p_sys;
 
+    /*
+     * If doesn't enable intfec support, just pass the packet to rtp_queue
+     * directly.
+     */
+    if (!p_sys->b_intfec)
+        return rtp_queue (demux, session, block);
+
     /* RTP header sanity checks (see RFC 3550) */
     if (block->i_buffer < 12)
         goto drop;
