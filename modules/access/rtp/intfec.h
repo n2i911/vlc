@@ -70,6 +70,9 @@
 
 #define DEBUG 0
 #define DEBUG_DECODE 0
+#define DEBUG_V 0       // recovery debug info
+#define DEBUG_VV 0      // rtp,intfec buffer debug info
+#define DEBUG_VVV 0     // would dump packet details
 
 typedef struct intfec_decoder_t
 {

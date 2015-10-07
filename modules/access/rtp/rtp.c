@@ -144,7 +144,7 @@ vlc_module_begin ()
     /* false as default */
     add_bool ("rtp-intfec", false, RFC5109_TEXT, RFC5109_LONGTEXT, false)
 
-    add_integer ("rtp-max-fecdepth", 10, RTP_MAX_FEC_DEPTH_TEXT,
+    add_integer ("rtp-max-fecdepth", 1, RTP_MAX_FEC_DEPTH_TEXT,
                  RTP_MAX_FEC_DEPTH_LONGTEXT, true)
 
     add_integer ("rtp-max-rtpdepth", 25, RTP_MAX_RTP_DEPTH_TEXT,

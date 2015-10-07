@@ -347,14 +347,14 @@ void intfec_blocklist_insert (block_t **head, block_t *block, uint16_t *depth)
     /* insert new block by ascent order */
     for (block_t *prev = *head; prev != NULL; prev = *head)
     {
-        if (DEBUG) printf ("%s, %u\n", __func__, rtp_seq (prev));
+        if (DEBUG_VVV) printf ("%s, %u\n", __func__, rtp_seq (prev));
 
         int16_t delta_seq = seq - rtp_seq (prev);
         if (delta_seq < 0)
             break;
         if (delta_seq == 0)
         {
-            if (DEBUG) printf ("%s, duplicate packet (sequence: %u)\n", __func__, rtp_seq (prev));
+            if (DEBUG_VV) printf ("%s, duplicate packet (sequence: %u)\n", __func__, rtp_seq (prev));
             goto drop; /* duplicate */
         }
         head = &prev->p_next;
@@ -364,7 +364,7 @@ void intfec_blocklist_insert (block_t **head, block_t *block, uint16_t *depth)
 
     (*depth)++;
 
-    if (DEBUG) printf ("%s, seq: %u\n", __func__, rtp_seq (block));
+    if (DEBUG_VV) printf ("%s, seq: %u, depth: %u\n", __func__, rtp_seq (block), *depth);
 
     return;
 
@@ -383,7 +383,7 @@ block_t* intfec_blocklist_pop (block_t **head, uint16_t *depth)
         *head = prev->p_next;
         (*depth)--;
 
-        if (DEBUG) printf ("%s, seq: %u\n", __func__, rtp_seq (prev));
+        if (DEBUG_VV) printf ("%s, seq: %u, depth: %u\n", __func__, rtp_seq (prev), *depth);
 
         return prev;
     }
@@ -406,7 +406,7 @@ block_t* intfec_blocklist_remove (block_t **head, block_t *block, uint16_t *dept
 
             (*depth)--;
 
-            if (DEBUG) printf ("%s, seq: %u\n", __func__, rtp_seq (block));
+            if (DEBUG_VV) printf ("%s, seq: %u, depth: %u\n", __func__, rtp_seq (block), *depth);
 
             return block;
         }
