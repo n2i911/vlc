@@ -1,4 +1,5 @@
 #define DEBUG 0
+#define DEBUG_SIM 0
 
 /*
  *  0                   1                   2                   3

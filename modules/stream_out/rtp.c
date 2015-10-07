@@ -174,6 +174,7 @@ static const char *const ppsz_protocols[] = {
             "FEC is used to provide protect against packet loss over packet-switched " \
             "networks. (see RFC5109)." )
 
+#define RFC6015_SIM_TEXT N_("Loss Simulation")
 #define RFC6015_DIM_TEXT N_("Dimension")
 #define RFC6015_L_TEXT N_("Columns")
 #define RFC6015_D_TEXT N_("Rows")
@@ -272,6 +273,10 @@ vlc_module_begin ()
     add_integer_with_range( SOUT_CFG_PREFIX "intfec-row", 4, 1, 256, RFC6015_D_TEXT,
             RFC6015_LONGTEXT, false )
 
+    /* 0 as default packet loss */
+    add_integer_with_range( SOUT_CFG_PREFIX "intfec-sim", 0, 0, 20, RFC6015_SIM_TEXT,
+            RFC6015_LONGTEXT, false )
+
     set_callbacks( Open, Close )
 
     add_submodule ()
@@ -302,6 +307,7 @@ static const char *const ppsz_sout_options[] = {
     "key", "salt",
 #endif
     "intfec", "intfec-dim", "intfec-col", "intfec-row",
+    "intfec-sim",
     "mp4a-latm", NULL
 };
 
@@ -392,6 +398,8 @@ typedef struct rtp_sink_t
     rtcp_sender_t *rtcp;
 } rtp_sink_t;
 
+typedef void (*rtp_send) (void *data, block_t *out);
+
 struct sout_stream_id_t
 {
     sout_stream_t *p_stream;
@@ -406,6 +414,8 @@ struct sout_stream_id_t
     /* Interleaved FEC */
     bool      b_intfec;
     uint8_t   i_intfec_dim;
+    uint8_t   i_intfec_sim;
+    rtp_send  callback;
 
     /* for rtsp */
     uint16_t    i_seq_sent_next;
@@ -1017,6 +1027,37 @@ uint32_t rtp_compute_ts( unsigned i_clock_rate, int64_t i_pts )
           + q.rem * (int64_t)i_clock_rate / CLOCK_FREQ;
 }
 
+static void rtp_send_callback (void *data, block_t *out)
+{
+    sout_stream_id_t *id = (sout_stream_id_t *)data;
+    block_FifoPut ( id->p_fifo, out );
+}
+
+static void rtp_dropsend_callback (void *data, block_t *out)
+{
+    uint8_t sim;
+    uint16_t seq;
+    uint32_t rand;
+
+    sout_stream_id_t *id = (sout_stream_id_t *)data;
+
+    sim = id->i_intfec_sim;
+    seq = GetWBE (out->p_buffer + 2);
+
+    vlc_rand_bytes (&rand, sizeof (rand));
+
+    if (rand % sim == 0)
+    {
+        if( DEBUG_SIM ) printf( "%s, packet loss simulation: drop %u\n", __func__, seq );
+        block_Release( out );
+    }
+    else
+    {
+        if( DEBUG_SIM ) printf( "%s, packet loss simulation: send %u\n", __func__, seq );
+        block_FifoPut( id->p_fifo, out );
+    }
+}
+
 /** Add an ES as a new RTP stream */
 static sout_stream_id_t *Add( sout_stream_t *p_stream, es_format_t *p_fmt )
 {
@@ -1036,6 +1077,14 @@ static sout_stream_id_t *Add( sout_stream_t *p_stream, es_format_t *p_fmt )
     id->i_mtu = var_InheritInteger( p_stream, "mtu" );
     if( id->i_mtu <= 12 + 16 )
         id->i_mtu = 576 - 20 - 8; /* pessimistic */
+
+    /* if intfe-sim is set to 0 then we don't simulate packet loss */
+    id->i_intfec_sim = var_GetInteger( p_stream, SOUT_CFG_PREFIX "intfec-sim" );
+
+    if ( id->i_intfec_sim == 0 )
+        id->callback = rtp_send_callback;
+    else
+        id->callback = rtp_dropsend_callback;
 
     /* false as default */
     id->b_intfec = false;
@@ -1936,7 +1985,7 @@ int intfec_encode( sout_stream_id_t *id, block_t *out )
                 id->encoder[j]->intfec_packets[i]->i_dts = out->i_dts;
 
                 /* Packetize */
-                id->encoder[j]->packet = block_New( id->p_stream, (12 + 16 + id->encoder[j]->intfec_packets[i]->pl_len) );
+                id->encoder[j]->packet = block_Alloc( (12 + 16 + id->encoder[j]->intfec_packets[i]->pl_len) );
                 rtp_packetize_intfec( id, id->encoder[j]->packet, 0, id->encoder[j]->intfec_packets[i] );
 
                 /* Free pl_recovery */
@@ -1963,7 +2012,7 @@ void rtp_packetize_send( sout_stream_id_t *id, block_t *out )
         intfec_encode( id, out );
     }
 
-    block_FifoPut( id->p_fifo, out );
+    id->callback( id, out );
 
     if( id->b_intfec )
     {
