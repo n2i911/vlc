@@ -262,7 +262,7 @@ vlc_module_begin ()
             RFC5109_LONGTEXT, false )
 
     /* 1 as default dimension */
-    add_integer_with_range( SOUT_CFG_PREFIX "intfec-dim", 1, 1, 2, RFC6015_DIM_TEXT,
+    add_integer_with_range( SOUT_CFG_PREFIX "intfec-dim", 1, 1, 3, RFC6015_DIM_TEXT,
             RFC6015_LONGTEXT, false )
 
     /* 5 as default column */
@@ -432,7 +432,7 @@ struct sout_stream_id_t
 #endif
 
     /* Interleaved FEC encoding block */
-    intfec_encoder_t *encoder[2];
+    intfec_encoder_t *encoder[3];
 
     /* Packets sinks */
     vlc_thread_t      thread;
@@ -703,7 +703,7 @@ static int Open( vlc_object_t *p_this )
 
     if( p_sys->b_intfec )
     {
-        msg_Dbg( p_stream, "intfec: dimension: %u, column: %u, row: %u", p_sys->i_intfec_dim,
+        msg_Dbg( p_stream, "intfec: dimension: %u, column: %lu, row: %lu", p_sys->i_intfec_dim,
                 var_GetInteger( p_stream, SOUT_CFG_PREFIX "intfec-col" ),
                 var_GetInteger( p_stream, SOUT_CFG_PREFIX "intfec-row" ));
     }
@@ -1103,11 +1103,17 @@ static sout_stream_id_t *Add( sout_stream_t *p_stream, es_format_t *p_fmt )
 
         for (int i = 0; i < id->i_intfec_dim; i++)
         {
-            /* so far, we only support at most 2-dimension */
+            /* so far, we only support at most 3-dimension:
+             * (col x row), (1 x col), (1 x 1) */
             if( i == 1 )
             {
                 row = col;
                 col = 1;
+            }
+            else if( i == 2 )
+            {
+                col = 1;
+                row = 1;
             }
 
             id->encoder[i] = intfec_create( col, row );
