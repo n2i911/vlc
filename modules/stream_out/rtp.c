@@ -3,6 +3,7 @@
  *****************************************************************************
  * Copyright (C) 2003-2004, 2010 the VideoLAN team
  * Copyright © 2007-2008 Rémi Denis-Courmont
+ * Copyright © 2013-2014 Sean Chiang <n2i911@gmail.com>
  *
  * Authors: Laurent Aimar <fenrir@via.ecp.fr>
  *          Pierre Ynard

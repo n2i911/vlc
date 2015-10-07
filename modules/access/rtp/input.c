@@ -4,6 +4,7 @@
  */
 /*****************************************************************************
  * Copyright © 2008 Rémi Denis-Courmont
+ * Copyright © 2013-2014 Sean Chiang <n2i911@gmail.com>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public License
