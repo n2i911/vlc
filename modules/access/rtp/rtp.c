@@ -88,6 +88,14 @@
             "FEC is used to provide protect against packet loss over packet-switched " \
             "networks. (see RFC5109)." )
 
+#define RTP_MAX_FEC_DEPTH_TEXT N_("Maximum FEC buffer length")
+#define RTP_MAX_FEC_DEPTH_LONGTEXT N_( \
+    "FEC packet will be discared if there are too much in buffer" )
+
+#define RTP_MAX_RTP_DEPTH_TEXT N_("Maximum RTP buffer length")
+#define RTP_MAX_RTP_DEPTH_LONGTEXT N_( \
+    "RTP packet will be transfered to decode if there are too much in buffer" )
+
 static const char *const dynamic_pt_list[] = { "theora" };
 static const char *const dynamic_pt_list_text[] = { "Theora Encoded Video" };
 
@@ -134,6 +142,13 @@ vlc_module_begin ()
 
     /* false as default */
     add_bool ("rtp-intfec", false, RFC5109_TEXT, RFC5109_LONGTEXT, false)
+
+    add_integer ("rtp-max-fecdepth", 10, RTP_MAX_FEC_DEPTH_TEXT,
+                 RTP_MAX_FEC_DEPTH_LONGTEXT, true)
+
+    add_integer ("rtp-max-rtpdepth", 25, RTP_MAX_RTP_DEPTH_TEXT,
+                 RTP_MAX_RTP_DEPTH_LONGTEXT, true)
+        change_integer_range (1, 255)
 
     /*add_shortcut ("sctp")*/
     add_shortcut ("dccp", "rtptcp", /* "tcp" is already taken :( */
@@ -277,6 +292,8 @@ static int Open (vlc_object_t *obj)
     p_sys->autodetect   = true;
 
     p_sys->b_intfec     = var_CreateGetInteger (obj, "rtp-intfec");
+    p_sys->max_rtpdepth = var_CreateGetInteger (obj, "rtp-max-rtpdepth");
+    p_sys->max_fecdepth = var_CreateGetInteger (obj, "rtp-max-fecdepth");
 
     demux->pf_demux   = NULL;
     demux->pf_control = Control;

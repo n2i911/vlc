@@ -343,7 +343,7 @@ intfec_queue (demux_t *demux, rtp_session_t *session, block_t *block)
     if (DEBUG) printf ("%s, rtp_depth: %u\n", __func__, src->intfec_decoder.rtp_depth);
 
     block_t *r_intfec;
-    while (src->intfec_decoder.intfec_depth > 10)
+    while (src->intfec_decoder.intfec_depth > p_sys->max_fecdepth)
     {
         r_intfec = NULL;
 
@@ -484,7 +484,7 @@ rtp_enqueue (demux_t *demux, rtp_session_t *session, block_t *block)
     if (DEBUG) printf ("%s, rtp_depth: %u\n", __func__, src->intfec_decoder.rtp_depth);
 
     block_t *r_rtp;
-    while (src->intfec_decoder.rtp_depth > 25)
+    while (src->intfec_decoder.rtp_depth > p_sys->max_rtpdepth)
     {
         r_rtp = NULL;
 

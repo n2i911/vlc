@@ -101,6 +101,8 @@ struct demux_sys_t
     vlc_thread_t  thread;
 
     bool b_intfec;
+    uint8_t max_rtpdepth;
+    uint8_t max_fecdepth;
 
     mtime_t       timeout;
     uint16_t      max_dropout; /**< Max packet forward misordering */
