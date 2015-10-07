@@ -128,11 +128,13 @@ int intfec_sameGroup (block_t *intfec, block_t *rtp)
 {
     uint32_t sn;
     uint16_t base;
+    uint16_t seq;
     uint8_t i;
     uint8_t col;
     uint8_t row;
 
     base = intfec_baseseq (intfec);
+    seq = rtp_seq (rtp);
 
     col = intfec_col (intfec);
     row = intfec_row (intfec);
@@ -144,7 +146,7 @@ int intfec_sameGroup (block_t *intfec, block_t *rtp)
         if (sn > 65535)
             sn = sn - 65535 - 1;
 
-        if (sn == rtp_seq (rtp))
+        if (sn == seq)
             return 1;
     }
     return 0;
@@ -339,7 +341,7 @@ void intfec_blocklist_insert (block_t **head, block_t *block, uint16_t *depth)
     /* insert new block by ascent order */
     for (block_t *prev = *head; prev != NULL; prev = *head)
     {
-        if (0) printf ("%s, %u\n", __func__, rtp_seq (prev));
+        if (DEBUG) printf ("%s, %u\n", __func__, rtp_seq (prev));
 
         int16_t delta_seq = seq - rtp_seq (prev);
         if (delta_seq < 0)

@@ -1902,8 +1902,9 @@ int intfec_encode( sout_stream_id_t *id, block_t *out )
     uint32_t last_seq = 0;
 
     uint16_t sn = GetWBE( out->p_buffer + 2 );
+    uint8_t i_intfec_dim = id->i_intfec_dim;
 
-    for( j = 0; j < id->i_intfec_dim; j++ )
+    for( j = 0; j < i_intfec_dim; j++ )
     {
         matrix_seq = 0;
         n_matrix_seq = 0;
@@ -2013,7 +2014,10 @@ int intfec_encode( sout_stream_id_t *id, block_t *out )
 
 void rtp_packetize_send( sout_stream_id_t *id, block_t *out )
 {
-    if( id->b_intfec )
+    bool b_intfec = id->b_intfec;
+    uint8_t i_intfec_dim = id->i_intfec_dim;
+
+    if( b_intfec )
     {
         /* Start FEC encoding */
         intfec_encode( id, out );
@@ -2021,9 +2025,9 @@ void rtp_packetize_send( sout_stream_id_t *id, block_t *out )
 
     id->callback( id, out );
 
-    if( id->b_intfec )
+    if( b_intfec )
     {
-        for (int i = 0; i < id->i_intfec_dim; i++)
+        for (int i = 0; i < i_intfec_dim; i++)
         {
             if( (id->encoder[i] != NULL) && (id->encoder[i]->packet != NULL) )
             {
