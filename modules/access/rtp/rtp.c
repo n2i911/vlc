@@ -292,7 +292,7 @@ static int Open (vlc_object_t *obj)
     p_sys->thread_ready = false;
     p_sys->autodetect   = true;
 
-    p_sys->b_intfec     = var_CreateGetInteger (obj, "rtp-intfec");
+    p_sys->b_intfec     = var_CreateGetBool (obj, "rtp-intfec");
     p_sys->max_rtpdepth = var_CreateGetInteger (obj, "rtp-max-rtpdepth");
     p_sys->max_fecdepth = var_CreateGetInteger (obj, "rtp-max-fecdepth");
 
