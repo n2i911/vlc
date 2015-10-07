@@ -85,6 +85,16 @@ uint8_t intfec_count (const block_t *block)
     return block->p_buffer[27];
 }
 
+uint16_t intfec_rtpdepth (const block_t *block)
+{
+    return GetWBE (block->p_buffer + 28);
+}
+
+uint16_t intfec_intfecdepth (const block_t *block)
+{
+    return GetWBE (block->p_buffer + 30);
+}
+
 int intfec_dump (block_t *intfec)
 {
     uint8_t i = 0;
@@ -100,9 +110,12 @@ int intfec_dump (block_t *intfec)
     printf ("%s, SN Recovery: 0x%x, %u\n", __func__, intfec_sn (intfec), intfec_sn (intfec));
     printf ("%s, Dim: %u\n", __func__, intfec_dim (intfec));
 
+    printf ("%s, Max rtp depth: 0x%x, %u\n", __func__, intfec_rtpdepth (intfec), intfec_rtpdepth (intfec));
+    printf ("%s, Max intfec depth: 0x%x, %u\n", __func__, intfec_intfecdepth (intfec), intfec_intfecdepth (intfec));
+
     printf ("%s, Payload Recovery:\n", __func__);
     for (i = 0; i < 16; i++)
-        printf ("0x%x ", intfec->p_buffer[i+28]);
+        printf ("0x%x ", intfec->p_buffer[i+12+INTFEC_HEADER_LEN]);
 
     printf ("\n--------------------------------------\n");
 
@@ -277,7 +290,7 @@ int intfec_set_pl (block_t *intfec, block_t *rtp)
 
     for (i = 0; i < len; i++)
     {
-        intfec->p_buffer[i+28] ^= rtp->p_buffer[i+12];
+        intfec->p_buffer[i+12+INTFEC_HEADER_LEN] ^= rtp->p_buffer[i+12];
     }
 
     return 0;
@@ -332,7 +345,7 @@ block_t* intfec_new_RTP (block_t *intfec)
     block->p_buffer[11] = intfec->p_buffer[11];
 
     /* Payload */
-    memcpy (&block->p_buffer[12], &intfec->p_buffer[28], len);
+    memcpy (&block->p_buffer[12], &intfec->p_buffer[12+INTFEC_HEADER_LEN], len);
 
     return block;
 }

@@ -267,11 +267,11 @@ vlc_module_begin ()
             RFC6015_LONGTEXT, false )
 
     /* 5 as default column */
-    add_integer_with_range( SOUT_CFG_PREFIX "intfec-col", 5, 1, 256, RFC6015_L_TEXT,
+    add_integer_with_range( SOUT_CFG_PREFIX "intfec-col", 5, 1, 255, RFC6015_L_TEXT,
             RFC6015_LONGTEXT, false )
 
     /* 4 as default row */
-    add_integer_with_range( SOUT_CFG_PREFIX "intfec-row", 4, 1, 256, RFC6015_D_TEXT,
+    add_integer_with_range( SOUT_CFG_PREFIX "intfec-row", 4, 1, 255, RFC6015_D_TEXT,
             RFC6015_LONGTEXT, false )
 
     /* 0 as default packet loss */
@@ -416,6 +416,8 @@ struct sout_stream_id_t
     bool      b_intfec;
     uint8_t   i_intfec_dim;
     uint8_t   i_intfec_sim;
+    uint16_t  i_rtp_depth;
+    uint16_t  i_intfec_depth;
     rtp_send  callback;
 
     /* for rtsp */
@@ -1095,12 +1097,28 @@ static sout_stream_id_t *Add( sout_stream_t *p_stream, es_format_t *p_fmt )
         id->b_intfec = true;
 
         id->i_fec_mtu = id->i_mtu;
-        id->i_mtu -= 16;
+        id->i_mtu -= INTFEC_HEADER_LEN;
 
         id->i_intfec_dim = p_sys->i_intfec_dim;
 
         col = var_GetInteger( p_stream, SOUT_CFG_PREFIX "intfec-col" );
         row = var_GetInteger( p_stream, SOUT_CFG_PREFIX "intfec-row" );
+
+        if( id->i_intfec_dim == 1 )
+        {
+            id->i_intfec_depth = col;
+        }
+        else if( id->i_intfec_dim == 2 )
+        {
+            id->i_intfec_depth = col + row;
+        }
+        else if( id->i_intfec_dim == 3)
+        {
+            id->i_intfec_depth = col + row + (col * row);
+        }
+
+        id->i_rtp_depth = col * row;
+
 
         for (int i = 0; i < id->i_intfec_dim; i++)
         {
@@ -1845,7 +1863,7 @@ void rtp_packetize_intfec( sout_stream_id_t *id, block_t *out,
 
     memcpy( out->p_buffer + 8, id->ssrc, 4 );
 
-    /* FEC header, 16 bytes */
+    /* FEC header, INTFEC_HEADER_LEN bytes */
 
     out->p_buffer[12] = 0;
     out->p_buffer[12] |= ( intfec_packet->padding_recovery << 5 );
@@ -1881,9 +1899,15 @@ void rtp_packetize_intfec( sout_stream_id_t *id, block_t *out,
     out->p_buffer[26] = id->i_intfec_dim;
     out->p_buffer[27] = 0x0;
 
-    out->i_buffer = (12 + 16 + intfec_packet->pl_len);
+    out->p_buffer[28] = ( id->i_rtp_depth >> 8 ) & 0xff;
+    out->p_buffer[29] = ( id->i_rtp_depth      ) & 0xff;
 
-    memcpy( &out->p_buffer[28], intfec_packet->pl_recovery, intfec_packet->pl_len );
+    out->p_buffer[30] = ( id->i_intfec_depth >> 8 ) & 0xff;
+    out->p_buffer[31] = ( id->i_intfec_depth      ) & 0xff;
+
+    out->i_buffer = (12 + INTFEC_HEADER_LEN + intfec_packet->pl_len);
+
+    memcpy( &out->p_buffer[12+INTFEC_HEADER_LEN], intfec_packet->pl_recovery, intfec_packet->pl_len );
 
     id->i_fec_sequence++;
 }
@@ -1993,7 +2017,7 @@ int intfec_encode( sout_stream_id_t *id, block_t *out )
                 id->encoder[j]->intfec_packets[i]->i_dts = out->i_dts;
 
                 /* Packetize */
-                id->encoder[j]->packet = block_Alloc( (12 + 16 + id->encoder[j]->intfec_packets[i]->pl_len) );
+                id->encoder[j]->packet = block_Alloc( (12 + INTFEC_HEADER_LEN + id->encoder[j]->intfec_packets[i]->pl_len) );
                 rtp_packetize_intfec( id, id->encoder[j]->packet, 0, id->encoder[j]->intfec_packets[i] );
 
                 /* Free pl_recovery */

@@ -298,27 +298,15 @@ intfec_queue (demux_t *demux, rtp_session_t *session, block_t *block)
     if (DEBUG) intfec_dump (block);
 
     /*
-     * If user doesn't set the max intfec buffer depth, generate it automatically
+     * If user doesn't set the max intfec and rtp buffer depth
      */
-    if (src->intfec_decoder.dim == 1)
-    {
-        if (p_sys->max_fecdepth == 1)
-            p_sys->max_fecdepth = intfec_col (block);
-    }
-    else if (src->intfec_decoder.dim == 2)
-    {
-        uint8_t tmp = intfec_col (block) + intfec_row (block);
-        if (p_sys->max_fecdepth < tmp)
-            p_sys->max_fecdepth = tmp;
-    }
-    else if (src->intfec_decoder.dim == 3)
-    {
-        uint8_t tmp = intfec_col (block) + intfec_row (block) + (intfec_col (block) * intfec_row (block));
-        if (p_sys->max_fecdepth < tmp)
-            p_sys->max_fecdepth = tmp;
-    }
+    if (p_sys->max_fecdepth == 1)
+        p_sys->max_fecdepth = intfec_intfecdepth (block);
 
-    if (DEBUG_VV) printf ("%s, max fecdepth: %u\n", __func__, p_sys->max_fecdepth);
+    if (p_sys->max_rtpdepth == 1)
+        p_sys->max_rtpdepth = intfec_rtpdepth (block);
+
+    if (DEBUG_VV) printf ("%s, max fecdepth: %u, max rtpdepth: %u\n", __func__, p_sys->max_fecdepth, p_sys->max_rtpdepth);
 
     /*
      * Check if the same group and decode

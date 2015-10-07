@@ -38,6 +38,8 @@
  * +=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+
  * |        SN recovery            |      dim      |      count    |
  * +=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+
+ * |        Max rtp buf depth      |      Max intfec buf depth     |
+ * +=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+
  * |                            payload                            |
  * |                                                               |
  * |                                                               |
@@ -61,6 +63,8 @@
  * +=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+
  * |       24      |       25      |       26      |       27      |
  * +=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+
+ * |       28      |       29      |       30      |       31      |
+ * +=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+
  * |                            payload                            |
  * |                                                               |
  * |                                                               |
@@ -73,6 +77,8 @@
 #define DEBUG_V 0       // recovery debug info
 #define DEBUG_VV 0      // rtp,intfec buffer debug info
 #define DEBUG_VVV 0     // would dump packet details
+
+#define INTFEC_HEADER_LEN 20
 
 typedef struct intfec_decoder_t
 {
@@ -95,6 +101,8 @@ uint8_t intfec_row (const block_t *block);
 uint16_t intfec_sn (const block_t *block);
 uint8_t intfec_dim (const block_t *block);
 uint8_t intfec_count (const block_t *block);
+uint16_t intfec_rtpdepth (const block_t *block);
+uint16_t intfec_intfecdepth (const block_t *block);
 int intfec_dump (block_t *intfec);
 
 int intfec_inc_count (block_t *intfec);

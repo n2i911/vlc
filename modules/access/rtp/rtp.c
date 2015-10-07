@@ -147,7 +147,7 @@ vlc_module_begin ()
     add_integer ("rtp-max-fecdepth", 1, RTP_MAX_FEC_DEPTH_TEXT,
                  RTP_MAX_FEC_DEPTH_LONGTEXT, true)
 
-    add_integer ("rtp-max-rtpdepth", 25, RTP_MAX_RTP_DEPTH_TEXT,
+    add_integer ("rtp-max-rtpdepth", 1, RTP_MAX_RTP_DEPTH_TEXT,
                  RTP_MAX_RTP_DEPTH_LONGTEXT, true)
         change_integer_range (1, 255)
 
