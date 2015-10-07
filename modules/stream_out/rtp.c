@@ -174,10 +174,11 @@ static const char *const ppsz_protocols[] = {
             "FEC is used to provide protect against packet loss over packet-switched " \
             "networks. (see RFC5109)." )
 
+#define RFC6015_DIM_TEXT N_("Dimension")
 #define RFC6015_L_TEXT N_("Columns")
 #define RFC6015_D_TEXT N_("Rows")
 #define RFC6015_LONGTEXT N_( \
-            "1-D interleaved parity code provides protection against bursty losses. " \
+            "1(2)-D interleaved parity code provides protection against bursty losses. " \
             "(see RFC6015)." )
 
 #define RTSP_TIMEOUT_TEXT N_( "RTSP session timeout (s)" )
@@ -259,6 +260,10 @@ vlc_module_begin ()
     add_bool( SOUT_CFG_PREFIX "intfec", false, RFC5109_TEXT,
             RFC5109_LONGTEXT, false )
 
+    /* 1 as default dimension */
+    add_integer_with_range( SOUT_CFG_PREFIX "intfec-dim", 1, 1, 2, RFC6015_DIM_TEXT,
+            RFC6015_LONGTEXT, false )
+
     /* 5 as default column */
     add_integer_with_range( SOUT_CFG_PREFIX "intfec-col", 5, 1, 256, RFC6015_L_TEXT,
             RFC6015_LONGTEXT, false )
@@ -296,7 +301,7 @@ static const char *const ppsz_sout_options[] = {
 #ifdef HAVE_SRTP
     "key", "salt",
 #endif
-    "intfec", "intfec-col", "intfec-row",
+    "intfec", "intfec-dim", "intfec-col", "intfec-row",
     "mp4a-latm", NULL
 };
 
@@ -364,6 +369,7 @@ struct sout_stream_sys_t
 
     /* Interleaved FEC */
     bool      b_intfec;
+    uint8_t   i_intfec_dim;
 
     /* VoD */
     vod_media_t *p_vod_media;
@@ -399,6 +405,7 @@ struct sout_stream_id_t
 
     /* Interleaved FEC */
     bool      b_intfec;
+    uint8_t   i_intfec_dim;
 
     /* for rtsp */
     uint16_t    i_seq_sent_next;
@@ -586,6 +593,7 @@ static int Open( vlc_object_t *p_this )
     p_sys->p_httpd_file = NULL;
 
     p_sys->b_intfec = var_GetBool( p_stream, SOUT_CFG_PREFIX "intfec" );
+    p_sys->i_intfec_dim = var_GetInteger( p_stream, SOUT_CFG_PREFIX "intfec-dim" );
 
     p_stream->p_sys     = p_sys;
 
@@ -685,7 +693,8 @@ static int Open( vlc_object_t *p_this )
 
     if( p_sys->b_intfec )
     {
-        msg_Dbg( p_stream, "intfec: column - %ld, row - %ld", var_GetInteger( p_stream, SOUT_CFG_PREFIX "intfec-col" ),
+        msg_Dbg( p_stream, "intfec: dimension: %u, column: %u, row: %u", p_sys->i_intfec_dim,
+                var_GetInteger( p_stream, SOUT_CFG_PREFIX "intfec-col" ),
                 var_GetInteger( p_stream, SOUT_CFG_PREFIX "intfec-row" ));
     }
     else
@@ -1034,6 +1043,8 @@ static sout_stream_id_t *Add( sout_stream_t *p_stream, es_format_t *p_fmt )
 
         id->i_fec_mtu = id->i_mtu;
         id->i_mtu -= 16;
+
+        id->i_intfec_dim = p_sys->i_intfec_dim;
 
         id->encoder = intfec_create( var_GetInteger( p_stream, SOUT_CFG_PREFIX "intfec-col" ),
                                         var_GetInteger( p_stream, SOUT_CFG_PREFIX "intfec-row" ) );
