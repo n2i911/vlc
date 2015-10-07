@@ -325,26 +325,27 @@ intfec_queue (demux_t *demux, rtp_session_t *session, block_t *block)
 
             /* intfec decode */
             intfec_decode (block, prev);
-        }
 
-        if (intfec_count(block) == (row - 1))
-        {
-            if (DEBUG) printf ("%s, recovery finished\n", __func__);
-            if (DEBUG) intfec_dump (block);
-
-            block_t *n_rtp = intfec_new_RTP (block);
-
-            if (n_rtp != NULL)
+            if (intfec_count(block) == (row - 1))
             {
-                if (DEBUG) rtp_dump (n_rtp);
-                intfec_blocklist_insert (&src->intfec_decoder.rtp_blocks, n_rtp, &src->intfec_decoder.rtp_depth);
+                if (DEBUG) printf ("%s, recovery finished\n", __func__);
+                if (DEBUG) intfec_dump (block);
 
-                /* The recovery for the FEC has finished so we don't
-                 * need to insert this FEC packet, just drop it */
-                goto drop;
+                block_t *n_rtp = intfec_new_RTP (block);
+
+                if (n_rtp != NULL)
+                {
+                    if (DEBUG) rtp_dump (n_rtp);
+                    /*
+                     * TODO: we should check if we can recover other rtp here, not just insert only
+                     */
+                    intfec_blocklist_insert (&src->intfec_decoder.rtp_blocks, n_rtp, &src->intfec_decoder.rtp_depth);
+
+                    /* The recovery for the FEC has finished so we don't
+                     * need to insert this FEC packet, just drop it */
+                    goto drop;
+                }
             }
-
-            break;
         }
 
         rtp = prev->p_next;
@@ -480,6 +481,9 @@ rtp_enqueue (demux_t *demux, rtp_session_t *session, block_t *block)
                 if (n_rtp != NULL)
                 {
                     if (DEBUG) rtp_dump (n_rtp);
+                    /*
+                     * TODO: we should check if we can recover other rtp here, not just insert only
+                     */
                     intfec_blocklist_insert (&src->intfec_decoder.rtp_blocks, n_rtp, &src->intfec_decoder.rtp_depth);
                 }
 
