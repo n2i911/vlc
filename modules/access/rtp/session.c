@@ -226,6 +226,90 @@ rtp_find_ptype (const rtp_session_t *session, rtp_source_t *source,
     return NULL;
 }
 
+void
+rtp_unqueue (demux_t *demux, rtp_session_t *session, rtp_source_t *src)
+{
+    demux_sys_t *p_sys = demux->p_sys;
+
+    block_t *r_rtp;
+
+    while (src->intfec_decoder.rtp_depth > p_sys->max_rtpdepth)
+    {
+        r_rtp = NULL;
+
+        r_rtp = intfec_blocklist_pop (&src->intfec_decoder.rtp_blocks, &src->intfec_decoder.rtp_depth);
+
+        if (r_rtp != NULL)
+        {
+            rtp_queue (demux, session, r_rtp);
+        }
+    }
+}
+
+void
+intfec_insert_recovery_rtp (rtp_source_t  *src, block_t **head, block_t *block, uint16_t *depth)
+{
+    uint16_t seq = rtp_seq (block);
+
+    if (!intfec_blocklist_insert (head, block, depth))
+    {
+        if (DEBUG_VV) printf("%s, non-duplicate rtp: %u\n", __func__, seq);
+        if (DEBUG_VV) printf ("%s, intfec_depth: %u\n", __func__, src->intfec_decoder.intfec_depth);
+
+        uint8_t row;
+
+        /*
+         * Check if the same group and decode
+         */
+        block_t *intfec = src->intfec_decoder.intfec_blocks;
+        for (block_t *prev = intfec; prev != NULL; prev = intfec)
+        {
+            row = intfec_row (prev);
+
+            if (intfec_count(prev) == (row - 1))
+            {
+                intfec = prev->p_next;
+                continue;
+            }
+
+            /*
+             * If the same group
+             */
+            if (intfec_sameGroup(prev, block) == 1)
+            {
+                if (DEBUG_VVV) printf ("%s, same group\n", __func__);
+
+                /* intfec decode */
+                intfec_decode (prev, block);
+
+                row = intfec_row (prev);
+
+                if (intfec_count(prev) == (row - 1))
+                {
+                    if (DEBUG_V) printf ("%s, recovery finished\n", __func__);
+                    if (DEBUG_VVV) intfec_dump (prev);
+
+                    /* Create a new RTP from the FEC and insert into the rtp queue */
+                    block_t *n_rtp = intfec_new_RTP (prev);
+
+                    if (n_rtp != NULL)
+                    {
+                        if (DEBUG_VVV) rtp_dump (n_rtp);
+
+                        intfec_insert_recovery_rtp (src, &src->intfec_decoder.rtp_blocks, n_rtp, &src->intfec_decoder.rtp_depth);
+                    }
+                }
+            }
+
+            intfec = prev->p_next;
+        }
+
+        return;
+    }
+
+    if (DEBUG_VV) printf("%s, duplicate rtp: %u\n", __func__, seq);
+}
+
 /**
  * Receives an FEC packet and queues it. Not a cancellation point.
  *
@@ -295,7 +379,7 @@ intfec_queue (demux_t *demux, rtp_session_t *session, block_t *block)
     if (src->intfec_decoder.dim == 0)
         src->intfec_decoder.dim = intfec_dim (block);
 
-    if (DEBUG) intfec_dump (block);
+    if (DEBUG_VVV) intfec_dump (block);
 
     /*
      * If user doesn't set the max intfec and rtp buffer depth
@@ -303,10 +387,13 @@ intfec_queue (demux_t *demux, rtp_session_t *session, block_t *block)
     if (p_sys->max_fecdepth == 1)
         p_sys->max_fecdepth = intfec_intfecdepth (block);
 
-    if (p_sys->max_rtpdepth == 1)
+    if (p_sys->max_rtpdepth == 255)
         p_sys->max_rtpdepth = intfec_rtpdepth (block);
 
     if (DEBUG_VV) printf ("%s, max fecdepth: %u, max rtpdepth: %u\n", __func__, p_sys->max_fecdepth, p_sys->max_rtpdepth);
+
+    if (DEBUG_V) printf ("%s, %u\n", __func__, seq);
+    if (DEBUG_VV) printf ("%s, rtp_depth: %u\n", __func__, src->intfec_decoder.rtp_depth);
 
     /*
      * Check if the same group and decode
@@ -314,32 +401,30 @@ intfec_queue (demux_t *demux, rtp_session_t *session, block_t *block)
     block_t *rtp = src->intfec_decoder.rtp_blocks;
     for (block_t *prev = rtp; prev != NULL; prev = rtp)
     {
-        if (DEBUG) printf ("%s, seq: %u\n", __func__, rtp_seq (prev));
+        if (DEBUG_VVV) printf ("%s, seq: %u\n", __func__, rtp_seq (prev));
 
         /*
          * If the same group
          */
         if (intfec_sameGroup(block, prev) == 1)
         {
-            if (DEBUG) printf ("%s, same group\n", __func__);
+            if (DEBUG_VVV) printf ("%s, same group\n", __func__);
 
             /* intfec decode */
             intfec_decode (block, prev);
 
             if (intfec_count(block) == (row - 1))
             {
-                if (DEBUG) printf ("%s, recovery finished\n", __func__);
-                if (DEBUG) intfec_dump (block);
+                if (DEBUG_V) printf ("%s, recovery finished\n", __func__);
+                if (DEBUG_VVV) intfec_dump (block);
 
                 block_t *n_rtp = intfec_new_RTP (block);
 
                 if (n_rtp != NULL)
                 {
-                    if (DEBUG) rtp_dump (n_rtp);
-                    /*
-                     * TODO: we should check if we can recover other rtp here, not just insert only
-                     */
-                    intfec_blocklist_insert (&src->intfec_decoder.rtp_blocks, n_rtp, &src->intfec_decoder.rtp_depth);
+                    if (DEBUG_VVV) rtp_dump (n_rtp);
+
+                    intfec_insert_recovery_rtp (src, &src->intfec_decoder.rtp_blocks, n_rtp, &src->intfec_decoder.rtp_depth);
 
                     /* The recovery for the FEC has finished so we don't
                      * need to insert this FEC packet, just drop it */
@@ -355,9 +440,7 @@ intfec_queue (demux_t *demux, rtp_session_t *session, block_t *block)
      * hence there is a single queue for all payload types. */
     intfec_blocklist_insert (&src->intfec_decoder.intfec_blocks, block, &src->intfec_decoder.intfec_depth);
 
-    if (DEBUG) printf ("%s, %u\n", __func__, seq);
-    if (DEBUG) printf ("%s, intfec_depth: %u\n", __func__, src->intfec_decoder.intfec_depth);
-    if (DEBUG) printf ("%s, rtp_depth: %u\n", __func__, src->intfec_decoder.rtp_depth);
+    if (DEBUG_VV) printf ("%s, intfec_depth: %u\n", __func__, src->intfec_decoder.intfec_depth);
 
     block_t *r_intfec;
     while (src->intfec_decoder.intfec_depth > p_sys->max_fecdepth)
@@ -450,65 +533,10 @@ rtp_enqueue (demux_t *demux, rtp_session_t *session, block_t *block)
         tab[session->srcc++] = src;
     }
 
-    /*
-     * Check if the same group and decode
-     */
-    block_t *intfec = src->intfec_decoder.intfec_blocks;
-    for (block_t *prev = intfec; prev != NULL; prev = intfec)
-    {
-        if (DEBUG) printf ("%s, seq: %u\n", __func__, rtp_seq (prev));
+    if (DEBUG_V) printf ("%s, %u\n", __func__, seq);
+    if (DEBUG_VV) printf ("%s, rtp_depth: %u\n", __func__, src->intfec_decoder.rtp_depth);
 
-        /*
-         * If the same group
-         */
-        if (intfec_sameGroup(prev, block) == 1)
-        {
-            if (DEBUG) printf ("%s, same group\n", __func__);
-
-            /* intfec decode */
-            intfec_decode (prev, block);
-
-            uint8_t row = intfec_row (prev);
-
-            if (intfec_count(prev) == (row - 1))
-            {
-                if (DEBUG) printf ("%s, recovery finished\n", __func__);
-                if (DEBUG) intfec_dump (prev);
-
-                /* Create a new RTP from the FEC and insert into the rtp queue */
-                block_t *n_rtp = intfec_new_RTP (prev);
-
-                if (n_rtp != NULL)
-                {
-                    if (DEBUG) rtp_dump (n_rtp);
-                    /*
-                     * TODO: we should check if we can recover other rtp here, not just insert only
-                     */
-                    intfec_blocklist_insert (&src->intfec_decoder.rtp_blocks, n_rtp, &src->intfec_decoder.rtp_depth);
-                }
-
-                /* remove and release the FEC packet from fec queue */
-                block_t *n_intfec = intfec_blocklist_remove (&src->intfec_decoder.intfec_blocks, prev, &src->intfec_decoder.intfec_depth);
-
-                if (n_intfec)
-                {
-                    block_Release (n_intfec);
-                }
-            }
-
-            break;
-        }
-
-        intfec = prev->p_next;
-    }
-
-    /* Queues the block in sequence order,
-     * hence there is a single queue for all payload types. */
-    intfec_blocklist_insert (&src->intfec_decoder.rtp_blocks, block, &src->intfec_decoder.rtp_depth);
-
-    if (DEBUG) printf ("%s, %u\n", __func__, seq);
-    if (DEBUG) printf ("%s, intfec_depth: %u\n", __func__, src->intfec_decoder.intfec_depth);
-    if (DEBUG) printf ("%s, rtp_depth: %u\n", __func__, src->intfec_decoder.rtp_depth);
+    intfec_insert_recovery_rtp (src, &src->intfec_decoder.rtp_blocks, block, &src->intfec_decoder.rtp_depth);
 
     block_t *r_rtp;
     while (src->intfec_decoder.rtp_depth > p_sys->max_rtpdepth)
@@ -562,7 +590,7 @@ rtp_queue (demux_t *demux, rtp_session_t *session, block_t *block)
     const uint16_t seq  = rtp_seq (block);
     const uint32_t ssrc = GetDWBE (block->p_buffer + 8);
 
-    if (DEBUG) printf ("%s, seq: %u\n", __func__, seq);
+    if (DEBUG_V) printf ("%s, seq: %u\n", __func__, seq);
 
     /* In most case, we know this source already */
     for (unsigned i = 0, max = session->srcc; i < max; i++)
