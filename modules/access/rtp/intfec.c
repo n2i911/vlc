@@ -75,6 +75,11 @@ uint16_t intfec_sn (const block_t *block)
     return GetWBE (block->p_buffer + 24);
 }
 
+uint8_t intfec_dim (const block_t *block)
+{
+    return block->p_buffer[26];
+}
+
 uint8_t intfec_count (const block_t *block)
 {
     return block->p_buffer[27];
@@ -93,6 +98,7 @@ int intfec_dump (block_t *intfec)
     printf ("%s, Col: 0x%x, Row: 0x%x\n", __func__, intfec_col (intfec), intfec_row (intfec));
 
     printf ("%s, SN Recovery: 0x%x, %u\n", __func__, intfec_sn (intfec), intfec_sn (intfec));
+    printf ("%s, Dim: %u\n", __func__, intfec_dim (intfec));
 
     printf ("%s, Payload Recovery:\n", __func__);
     for (i = 0; i < 16; i++)

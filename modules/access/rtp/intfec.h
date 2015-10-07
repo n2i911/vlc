@@ -36,7 +36,7 @@
  * +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
  * |        length recovery        |     columns   |      rows     |
  * +=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+
- * |        SN recovery            |      mask     |      count    |
+ * |        SN recovery            |      dim      |      count    |
  * +=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+
  * |                            payload                            |
  * |                                                               |
@@ -73,6 +73,7 @@
 
 typedef struct intfec_decoder_t
 {
+    uint8_t dim;
     block_t *intfec_blocks; /* re-ordered intfec blocks queue */
     uint16_t intfec_depth;
     block_t *rtp_blocks;    /* re-ordered rtp blocks queue */
@@ -89,6 +90,7 @@ uint16_t intfec_len (const block_t *block);
 uint8_t intfec_col (const block_t *block);
 uint8_t intfec_row (const block_t *block);
 uint16_t intfec_sn (const block_t *block);
+uint8_t intfec_dim (const block_t *block);
 uint8_t intfec_count (const block_t *block);
 int intfec_dump (block_t *intfec);
 

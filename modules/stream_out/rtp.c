@@ -1878,7 +1878,7 @@ void rtp_packetize_intfec( sout_stream_id_t *id, block_t *out,
     out->p_buffer[24] = ( intfec_packet->sn_recovery >> 8 ) & 0xff;
     out->p_buffer[25] = ( intfec_packet->sn_recovery      ) & 0xff;
 
-    out->p_buffer[26] = 0x0;
+    out->p_buffer[26] = id->i_intfec_dim;
     out->p_buffer[27] = 0x0;
 
     out->i_buffer = (12 + 16 + intfec_packet->pl_len);

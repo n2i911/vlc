@@ -177,6 +177,7 @@ rtp_source_create (demux_t *demux, const rtp_session_t *session,
     source->last_seq = init_seq - 1;
     source->blocks = NULL;
 
+    source->intfec_decoder.dim = 0;
     source->intfec_decoder.intfec_blocks = NULL;
     source->intfec_decoder.intfec_depth = 0;
     source->intfec_decoder.rtp_blocks = NULL;
@@ -290,6 +291,9 @@ intfec_queue (demux_t *demux, rtp_session_t *session, block_t *block)
 
         tab[session->srcc++] = src;
     }
+
+    if (src->intfec_decoder.dim == 0)
+        src->intfec_decoder.dim = intfec_dim (block);
 
     if (DEBUG) intfec_dump (block);
 
