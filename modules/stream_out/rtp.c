@@ -422,7 +422,7 @@ struct sout_stream_id_t
 #endif
 
     /* Interleaved FEC encoding block */
-    intfec_encoder_t *encoder;
+    intfec_encoder_t *encoder[2];
 
     /* Packets sinks */
     vlc_thread_t      thread;
@@ -1025,6 +1025,9 @@ static sout_stream_id_t *Add( sout_stream_t *p_stream, es_format_t *p_fmt )
     sout_stream_sys_t *p_sys = p_stream->p_sys;
     char              *psz_sdp;
 
+    uint8_t col;
+    uint8_t row;
+
     sout_stream_id_t *id = malloc( sizeof( *id ) );
     if( unlikely(id == NULL) )
         return NULL;
@@ -1046,12 +1049,24 @@ static sout_stream_id_t *Add( sout_stream_t *p_stream, es_format_t *p_fmt )
 
         id->i_intfec_dim = p_sys->i_intfec_dim;
 
-        id->encoder = intfec_create( var_GetInteger( p_stream, SOUT_CFG_PREFIX "intfec-col" ),
-                                        var_GetInteger( p_stream, SOUT_CFG_PREFIX "intfec-row" ) );
+        col = var_GetInteger( p_stream, SOUT_CFG_PREFIX "intfec-col" );
+        row = var_GetInteger( p_stream, SOUT_CFG_PREFIX "intfec-row" );
 
-        if( id->encoder == NULL )
+        for (int i = 0; i < id->i_intfec_dim; i++)
         {
-            msg_Err( p_stream, "intfec_create() goes failure" );
+            /* so far, we only support at most 2-dimension */
+            if( i == 1 )
+            {
+                row = col;
+                col = 1;
+            }
+
+            id->encoder[i] = intfec_create( col, row );
+
+            if( id->encoder[i] == NULL )
+            {
+                msg_Err( p_stream, "intfec_create() goes failure" );
+            }
         }
     }
     msg_Dbg( p_stream, "maximum RTP packet size: %d bytes", id->i_mtu );
@@ -1820,6 +1835,7 @@ void rtp_packetize_intfec( sout_stream_id_t *id, block_t *out,
 int intfec_encode( sout_stream_id_t *id, block_t *out )
 {
     uint8_t i = 0;
+    uint8_t j = 0;
     uint8_t col = 0;
     uint8_t row = 0;
 
@@ -1831,101 +1847,108 @@ int intfec_encode( sout_stream_id_t *id, block_t *out )
 
     uint16_t sn = GetWBE( out->p_buffer + 2 );
 
-    /* The first time for encoding block */
-    if( !id->encoder->start_encoding )
+    for( j = 0; j < id->i_intfec_dim; j++ )
     {
-        id->encoder->start_encoding = true;
-        id->encoder->matrix_seq = sn;
-    }
+        matrix_seq = 0;
+        n_matrix_seq = 0;
+        last_seq = 0;
 
-    col = id->encoder->col;
-    row = id->encoder->row;
-
-    matrix_seq = id->encoder->matrix_seq;
-
-    /* check if buffer overflow happens */
-    n_matrix_seq = (matrix_seq + (col * row));
-    if( n_matrix_seq > 65535 )
-    {
-        n_matrix_seq = n_matrix_seq - 65535 - 1;
-        if( DEBUG ) printf( "%s, overflow n_matrix_seq: %u\n", __func__, n_matrix_seq );
-    }
-
-    /* Start an new encoding block */
-    if( sn == n_matrix_seq )
-    {
-        matrix_seq = sn;
-        id->encoder->matrix_seq = sn;
-
-        if( DEBUG ) printf( "%s, ====================================== \n", __func__ );
-
-        /* Free unreleased memory */
-        for( i = 0; i < col; i++ )
+        /* The first time for encoding block */
+        if( !id->encoder[j]->start_encoding )
         {
-            if( id->encoder->intfec_packets[i] != NULL )
-            {
-                /* Free pl_recovery */
-                if( id->encoder->intfec_packets[i]->pl_recovery != NULL )
-                    free( id->encoder->intfec_packets[i]->pl_recovery );
+            id->encoder[j]->start_encoding = true;
+            id->encoder[j]->matrix_seq = sn;
+        }
 
-                free( id->encoder->intfec_packets[i] );
+        col = id->encoder[j]->col;
+        row = id->encoder[j]->row;
+
+        matrix_seq = id->encoder[j]->matrix_seq;
+
+        /* check if buffer overflow happens */
+        n_matrix_seq = (matrix_seq + (col * row));
+        if( n_matrix_seq > 65535 )
+        {
+            n_matrix_seq = n_matrix_seq - 65535 - 1;
+            if( DEBUG ) printf( "%s, dim[%u]: overflow n_matrix_seq: %u\n", __func__, j, n_matrix_seq );
+        }
+
+        /* Start an new encoding block */
+        if( sn == n_matrix_seq )
+        {
+            matrix_seq = sn;
+            id->encoder[j]->matrix_seq = sn;
+
+            if( DEBUG ) printf( "%s, dim[%u]: ====================================== \n", __func__, j );
+
+            /* Free unreleased memory */
+            for( i = 0; i < col; i++ )
+            {
+                if( id->encoder[j]->intfec_packets[i] != NULL )
+                {
+                    /* Free pl_recovery */
+                    if( id->encoder[j]->intfec_packets[i]->pl_recovery != NULL )
+                        free( id->encoder[j]->intfec_packets[i]->pl_recovery );
+
+                    free( id->encoder[j]->intfec_packets[i] );
+                }
             }
         }
-    }
 
-    if( id->encoder->start_encoding )
-    {
-        if( sn < matrix_seq )
-            i = ((65535 - matrix_seq) + 1 + sn) % col;
-        else
-            i = (sn - matrix_seq) % col;
-
-        if( DEBUG ) printf( "%s, matrix_seq: %u, sn: %u, index: %u\n", __func__, matrix_seq, sn, i );
-
-        intfec_packet = id->encoder->intfec_packets[i];
-
-        if( intfec_packet == NULL )
+        if( id->encoder[j]->start_encoding )
         {
-            /* The first RTP packet of the FEC packet */
-            id->encoder->intfec_packets[i] = intfec_new( sn, col, row, out );
-            intfec_packet = id->encoder->intfec_packets[i];
-        }
-        else
-        {
-            intfec_add( intfec_packet, sn, out );
-        }
+            if( sn < matrix_seq )
+                i = ((65535 - matrix_seq) + 1 + sn) % col;
+            else
+                i = (sn - matrix_seq) % col;
 
-        last_seq = (intfec_packet->base_seq + (col * (row - 1)));
-        if( last_seq > 65535 )
-        {
-            last_seq = last_seq - 65535 - 1;
-            if ( DEBUG ) printf( "%s, overflow last_seq: %u\n", __func__, last_seq );
-        }
+            if( DEBUG ) printf( "%s, dim[%u]: matrix_seq: %u, sn: %u, index: %u\n", __func__, j, matrix_seq, sn, i );
 
-        /* When one FEC packet has finished the encoding */
-        if( sn == last_seq )
-        {
-            /* TODO: Send FEC packet */
+            intfec_packet = id->encoder[j]->intfec_packets[i];
 
-            if( DEBUG ) intfec_dump( id->encoder->intfec_packets[i] );
+            if( intfec_packet == NULL )
+            {
+                /* The first RTP packet of the FEC packet */
+                id->encoder[j]->intfec_packets[i] = intfec_new( sn, col, row, out );
+                intfec_packet = id->encoder[j]->intfec_packets[i];
+            }
+            else
+            {
+                intfec_add( intfec_packet, sn, out );
+            }
 
-            assert( id->encoder->packet == NULL );
+            last_seq = (intfec_packet->base_seq + (col * (row - 1)));
+            if( last_seq > 65535 )
+            {
+                last_seq = last_seq - 65535 - 1;
+                if ( DEBUG ) printf( "%s, dim[%u]: overflow last_seq: %u\n", __func__, j, last_seq );
+            }
 
-            id->encoder->intfec_packets[i]->i_dts = out->i_dts;
+            /* When one FEC packet has finished the encoding */
+            if( sn == last_seq )
+            {
+                /* TODO: Send FEC packet */
 
-            /* Packetize */
-            id->encoder->packet = block_Alloc( (12 + 16 + id->encoder->intfec_packets[i]->pl_len) );
-            rtp_packetize_intfec( id, id->encoder->packet, 0, id->encoder->intfec_packets[i] );
+                if( DEBUG ) intfec_dump( id->encoder[j]->intfec_packets[i] );
 
-            /* Free pl_recovery */
-            if( id->encoder->intfec_packets[i]->pl_recovery != NULL )
-                free( id->encoder->intfec_packets[i]->pl_recovery );
+                assert( id->encoder[j]->packet == NULL );
 
-            free( id->encoder->intfec_packets[i] );
-            intfec_packet = NULL;
-            id->encoder->intfec_packets[i] = NULL;
+                id->encoder[j]->intfec_packets[i]->i_dts = out->i_dts;
 
-            assert( id->encoder->intfec_packets[i] == NULL );
+                /* Packetize */
+                id->encoder[j]->packet = block_New( id->p_stream, (12 + 16 + id->encoder[j]->intfec_packets[i]->pl_len) );
+                rtp_packetize_intfec( id, id->encoder[j]->packet, 0, id->encoder[j]->intfec_packets[i] );
+
+                /* Free pl_recovery */
+                if( id->encoder[j]->intfec_packets[i]->pl_recovery != NULL )
+                    free( id->encoder[j]->intfec_packets[i]->pl_recovery );
+
+                free( id->encoder[j]->intfec_packets[i] );
+                intfec_packet = NULL;
+                id->encoder[j]->intfec_packets[i] = NULL;
+
+                assert( id->encoder[j]->intfec_packets[i] == NULL );
+            }
         }
     }
 
@@ -1944,11 +1967,14 @@ void rtp_packetize_send( sout_stream_id_t *id, block_t *out )
 
     if( id->b_intfec )
     {
-        if( (id->encoder != NULL) && (id->encoder->packet != NULL) )
+        for (int i = 0; i < id->i_intfec_dim; i++)
         {
-            /* Put into packet buffer and waiting to send */
-            block_FifoPut( id->p_fifo, id->encoder->packet );
-            id->encoder->packet = NULL;
+            if( (id->encoder[i] != NULL) && (id->encoder[i]->packet != NULL) )
+            {
+                /* Put into packet buffer and waiting to send */
+                block_FifoPut( id->p_fifo, id->encoder[i]->packet );
+                id->encoder[i]->packet = NULL;
+            }
         }
     }
 }
