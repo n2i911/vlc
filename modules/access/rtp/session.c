@@ -46,6 +46,9 @@ struct rtp_session_t
     rtp_pt_t      *ptv;
 };
 
+demux_t *g_demux;
+uint32_t rtpFlag[0xffff];
+
 static rtp_source_t *
 rtp_source_create (demux_t *, const rtp_session_t *, uint32_t, uint16_t);
 static void
@@ -182,6 +185,8 @@ rtp_source_create (demux_t *demux, const rtp_session_t *session,
     source->intfec_decoder.intfec_depth = 0;
     source->intfec_decoder.rtp_blocks = NULL;
     source->intfec_decoder.rtp_depth = 0;
+
+    memset (rtpFlag, 0xff, sizeof(rtpFlag));
 
     /* Initializes all payload */
     for (unsigned i = 0; i < session->ptc; i++)
@@ -320,13 +325,25 @@ intfec_insert_recovery_rtp (rtp_source_t  *src, block_t **head, block_t *block, 
 void
 intfec_queue (demux_t *demux, rtp_session_t *session, block_t *block)
 {
+    uint16_t *pSN;
+    uint32_t *pTimestamp;
+
     demux_sys_t *p_sys = demux->p_sys;
+    g_demux = demux;
 
     /* RTP header sanity checks (see RFC 3550) */
     if (block->i_buffer < 12)
         goto drop;
     if ((block->p_buffer[0] >> 6 ) != 2) /* RTP version number */
         goto drop;
+
+    pSN = (uint16_t *)&block->p_buffer[2];
+    pTimestamp = (uint32_t *)&block->p_buffer[4];
+
+    if (rtpFlag[*pSN] == *pTimestamp)
+        goto drop;
+    else
+        rtpFlag[*pSN] = *pTimestamp;
 
     /* Remove padding if present */
     if (block->p_buffer[0] & 0x20)
@@ -472,6 +489,7 @@ void
 rtp_enqueue (demux_t *demux, rtp_session_t *session, block_t *block)
 {
     demux_sys_t *p_sys = demux->p_sys;
+    g_demux = demux;
 
     /*
      * If doesn't enable intfec support, just pass the packet to rtp_queue

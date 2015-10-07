@@ -183,6 +183,9 @@ static const char *const ppsz_protocols[] = {
             "1(2)-D interleaved parity code provides protection against bursty losses. " \
             "(see RFC6015)." )
 
+#define FEC_REPAT_TEXT N_("Repat")
+#define FEC_REPAT_LONGTEXT N_("Fec package repat")
+
 #define RTSP_TIMEOUT_TEXT N_( "RTSP session timeout (s)" )
 #define RTSP_TIMEOUT_LONGTEXT N_( "RTSP sessions will be closed after " \
     "not receiving any RTSP request for this long. Setting it to a " \
@@ -278,6 +281,9 @@ vlc_module_begin ()
     add_integer_with_range( SOUT_CFG_PREFIX "intfec-sim", 0, 0, 20, RFC6015_SIM_TEXT,
             RFC6015_LONGTEXT, false )
 
+    /* 0 as default fec packet repat */
+    add_integer_with_range( SOUT_CFG_PREFIX "intfec-repat", 0, 0, 100, FEC_REPAT_TEXT, FEC_REPAT_LONGTEXT, false )
+
     set_callbacks( Open, Close )
 
     add_submodule ()
@@ -308,7 +314,7 @@ static const char *const ppsz_sout_options[] = {
     "key", "salt",
 #endif
     "intfec", "intfec-dim", "intfec-col", "intfec-row",
-    "intfec-sim",
+    "intfec-sim", "intfec-repat",
     "mp4a-latm", NULL
 };
 
@@ -419,6 +425,8 @@ struct sout_stream_id_t
     uint16_t  i_rtp_depth;
     uint16_t  i_intfec_depth;
     rtp_send  callback;
+
+    uint8_t   i_intfec_repat;
 
     /* for rtsp */
     uint16_t    i_seq_sent_next;
@@ -1083,6 +1091,8 @@ static sout_stream_id_t *Add( sout_stream_t *p_stream, es_format_t *p_fmt )
 
     /* if intfe-sim is set to 0 then we don't simulate packet loss */
     id->i_intfec_sim = var_GetInteger( p_stream, SOUT_CFG_PREFIX "intfec-sim" );
+
+    id->i_intfec_repat = var_GetInteger( p_stream, SOUT_CFG_PREFIX "intfec-repat" );
 
     if ( id->i_intfec_sim == 0 )
         id->callback = rtp_send_callback;
@@ -2040,8 +2050,9 @@ void rtp_packetize_send( sout_stream_id_t *id, block_t *out )
 {
     bool b_intfec = id->b_intfec;
     uint8_t i_intfec_dim = id->i_intfec_dim;
+    uint8_t i_intfec_repat = id->i_intfec_repat;
 
-    if( b_intfec )
+    if (b_intfec)
     {
         /* Start FEC encoding */
         intfec_encode( id, out );
@@ -2049,8 +2060,23 @@ void rtp_packetize_send( sout_stream_id_t *id, block_t *out )
 
     id->callback( id, out );
 
-    if( b_intfec )
+    if (b_intfec)
     {
+        for (int r = 0; r < i_intfec_repat; r++)
+        {
+            for (int i = 0; i < i_intfec_dim; i++)
+            {
+                if ((id->encoder[i] != NULL) && (id->encoder[i]->packet != NULL))
+                {
+                    block_t *pBlock = block_Alloc( id->encoder[i]->packet->i_buffer );
+                    memcpy( pBlock->p_buffer, id->encoder[i]->packet->p_buffer, id->encoder[i]->packet->i_buffer );
+
+                    /* Put into packet buffer and waiting to send */
+                    block_FifoPut( id->p_fifo, pBlock );
+                }
+            }
+        }
+
         for (int i = 0; i < i_intfec_dim; i++)
         {
             if( (id->encoder[i] != NULL) && (id->encoder[i]->packet != NULL) )
